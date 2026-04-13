@@ -1,0 +1,4 @@
+/* Leaflet fix for React */
+.leaflet-container {
+  z-index: 0;
+}

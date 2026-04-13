@@ -1,0 +1,11 @@
+{
+  "name": "sjtmo-app",
+  "version": "1.0.0",
+  "description": "San Jose Traffic Management Office System",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm start",
+    "start": "npm run backend & npm run frontend"
+  }
+}
