@@ -1,2 +1,21 @@
+# Environment variables — NEVER commit these
 .env
+.env.local
+.env.*.local
+
+# Dependencies
 node_modules/
+*/node_modules/
+
+# Vite build output
+frontend/dist/
+frontend/.vite/
+
+# Uploaded ordinance files (server-side)
+backend/uploads/
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
