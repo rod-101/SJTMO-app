@@ -9,25 +9,7 @@ const PORT = process.env.PORT || 5000;
 // ─── CORS ────────────────────────────────────────────────────────────────────
 // FRONTEND_URL is set on Render to the static site URL (e.g. https://sjtmo-app.onrender.com)
 // In local dev it falls back to allowing localhost origins.
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:5173', // Vite default dev port
-].filter(Boolean); // remove undefined if FRONTEND_URL not set
-
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, curl, Postman) or matching origins
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin ${origin} not allowed`));
-      }
-    },
-    credentials: false,
-  })
-);
+app.use(cors());
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
