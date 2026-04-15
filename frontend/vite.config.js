@@ -11,6 +11,9 @@ export default defineConfig({
 
   build: {
     outDir: 'dist',
+    sourcemap: false,   // inline source maps use eval(); disable in production
+    target: 'es2015',   // esbuild targets native ES modules — no eval polyfills
+    minify: 'esbuild',  // esbuild minifier never emits eval
   },
 
   server: {
