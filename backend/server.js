@@ -13,7 +13,9 @@ const allowedOrigins = process.env.FRONTEND_URL
   ? [process.env.FRONTEND_URL]
   : ['http://localhost:3000', 'http://localhost:5173'];
 
-app.use(cors({ origin: allowedOrigins }));
+const corsOptions = { origin: allowedOrigins, optionsSuccessStatus: 200 };
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // handle preflight for all routes
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
