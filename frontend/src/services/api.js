@@ -13,13 +13,17 @@ const handleResponse = async (res) => {
   return data;
 };
 
-export const login = (email, password) =>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+// phone_number is normalised by the backend before querying.
+// Accepted formats: +639XXXXXXXXX | 09XXXXXXXXX | 639XXXXXXXXX
+export const login = (phone_number, password) =>
   fetch(`${BASE_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ phone_number, password }),
   }).then(handleResponse);
 
+// ── Violations ────────────────────────────────────────────────────────────────
 export const getViolations = (motoristName = null) => {
   const url = motoristName
     ? `${BASE_URL}/violations?motorist=${encodeURIComponent(motoristName)}`
@@ -58,18 +62,20 @@ export const updateViolation = (id, data) =>
     body: JSON.stringify(data),
   }).then(handleResponse);
 
+// ── Ordinances ────────────────────────────────────────────────────────────────
 export const getOrdinances = () =>
   fetch(`${BASE_URL}/ordinances`).then(handleResponse);
 
 export const uploadOrdinance = (formData) =>
   fetch(`${BASE_URL}/ordinances`, {
     method: 'POST',
-    body: formData, // multipart/form-data — don't set Content-Type manually
+    body: formData,
   }).then(handleResponse);
 
 export const deleteOrdinance = (id) =>
   fetch(`${BASE_URL}/ordinances/${id}`, { method: 'DELETE' }).then(handleResponse);
 
+// ── Users ─────────────────────────────────────────────────────────────────────
 export const getUsers = () =>
   fetch(`${BASE_URL}/users`).then(handleResponse);
 
