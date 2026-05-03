@@ -2,41 +2,36 @@ const express = require('express');
 const router  = express.Router();
 const bcrypt  = require('bcryptjs');
 const pool    = require('../db');
-const { normalizePhone, isValidPhone } = require('../utils/phone');
 
 // POST /login
-// Body: { phone_number: string, password: string }
-//
-// phone_number is normalised before querying, so all three input formats work:
-//   +639XXXXXXXXX  /  09XXXXXXXXX  /  639XXXXXXXXX
+// Body: { email: string, password: string }
 router.post('/', async (req, res) => {
-  const { phone_number, password } = req.body;
+  const { email, password } = req.body;
 
-  // ── Presence ───────────────────────────────────────────────
-  if (!phone_number || !password) {
-    return res.status(400).json({ error: 'Phone number and password are required.' });
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  if (typeof email !== 'string' || email.length > 255) {
+    return res.status(400).json({ error: 'Invalid request.' });
   }
 
   if (typeof password !== 'string' || password.length > 128) {
     return res.status(400).json({ error: 'Invalid request.' });
   }
 
-  // ── Normalise + validate format ────────────────────────────
-  const normalized = normalizePhone(phone_number);
-  if (!normalized) {
-    return res.status(400).json({
-      error: 'Invalid phone number. Use +639XXXXXXXXX, 09XXXXXXXXX, or 639XXXXXXXXX.',
-    });
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return res.status(400).json({ error: 'Enter a valid email address.' });
   }
 
   try {
     const result = await pool.query(
-      'SELECT id, name, phone_number, role, password FROM users WHERE phone_number = $1 LIMIT 1',
-      [normalized]
+      'SELECT id, name, email, role, password FROM users WHERE email = $1 LIMIT 1',
+      [normalizedEmail]
     );
 
-    // Use a generic message for both "not found" and "wrong password"
-    // to prevent user enumeration attacks.
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
@@ -48,7 +43,6 @@ router.post('/', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials.' });
     }
 
-    // Never send the password hash to the client
     const { password: _pw, ...safeUser } = user;
     res.json({ success: true, user: safeUser });
   } catch (err) {

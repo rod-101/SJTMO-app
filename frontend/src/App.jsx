@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 
+import LandingPage from './pages/landing/LandingPage';
 import Login from './pages/auth/Login';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import EnforcerDashboard from './pages/enforcer/EnforcerDashboard';
@@ -14,10 +15,11 @@ const ProtectedRoute = ({ children, role }) => {
   return children;
 };
 
-const RoleRedirect = () => {
+// Show landing page for guests; redirect authenticated users to their dashboard.
+const HomeRoute = () => {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  if (user.role === 'admin') return <Navigate to="/admin" replace />;
+  if (!user) return <LandingPage />;
+  if (user.role === 'admin')    return <Navigate to="/admin"    replace />;
   if (user.role === 'enforcer') return <Navigate to="/enforcer" replace />;
   if (user.role === 'motorist') return <Navigate to="/motorist" replace />;
   return <Navigate to="/login" replace />;
@@ -29,7 +31,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route path="/" element={<RoleRedirect />} />
+          <Route path="/" element={<HomeRoute />} />
           <Route
             path="/admin/*"
             element={

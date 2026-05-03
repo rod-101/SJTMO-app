@@ -5,27 +5,26 @@
 -- ============================================================
 
 -- ── Users ────────────────────────────────────────────────────
--- phone_number is the ONLY login credential.
--- Stored in normalised international format: +639XXXXXXXXX
+-- email is the ONLY login credential.
 CREATE TABLE IF NOT EXISTS users (
-    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    name         VARCHAR(150) NOT NULL,
-    phone_number VARCHAR(20)  UNIQUE NOT NULL,
-    password     VARCHAR(255) NOT NULL,           -- bcrypt hash
-    role         VARCHAR(20)  CHECK (role IN ('admin','enforcer','motorist')),
-    created_at   TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    name       VARCHAR(150) NOT NULL,
+    email      VARCHAR(255) UNIQUE NOT NULL,
+    password   VARCHAR(255) NOT NULL,           -- bcrypt hash
+    role       VARCHAR(20)  CHECK (role IN ('admin','enforcer','motorist')),
+    created_at TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone_number);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
--- Safe migration: drop email column if it still exists from a previous schema
+-- Safe migration: drop phone_number column if it still exists from a previous schema
 DO $$
 BEGIN
   IF EXISTS (
     SELECT 1 FROM information_schema.columns
-    WHERE table_name = 'users' AND column_name = 'email'
+    WHERE table_name = 'users' AND column_name = 'phone_number'
   ) THEN
-    ALTER TABLE users DROP COLUMN email;
+    ALTER TABLE users DROP COLUMN phone_number;
   END IF;
 END
 $$;

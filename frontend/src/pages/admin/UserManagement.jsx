@@ -2,25 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { getUsers, createUser, deleteUser } from '../../services/api';
 import '../../App.css';
 
-// ── Phone validation (mirrors backend/utils/phone.js) ────────────────────────
-const PH_INTL_RE  = /^\+639\d{9}$/;
-const PH_LOCAL_RE = /^09\d{9}$/;
-const PH_NOPFX_RE = /^639\d{9}$/;
-
-function isValidPhone(raw) {
-  const s = (raw || '').trim().replace(/\s+/g, '');
-  return PH_INTL_RE.test(s) || PH_LOCAL_RE.test(s) || PH_NOPFX_RE.test(s);
-}
-
-const VALID_ROLES  = ['admin', 'enforcer', 'motorist'];
-const EMPTY_FORM   = { name: '', phone_number: '', password: '', role: 'motorist' };
+const VALID_ROLES = ['admin', 'enforcer', 'motorist'];
+const EMPTY_FORM  = { name: '', email: '', password: '', role: 'motorist' };
 
 function validate(form) {
-  if (!form.name.trim())              return 'Full name is required.';
-  if (!form.phone_number.trim())      return 'Phone number is required.';
-  if (!isValidPhone(form.phone_number))
-                                      return 'Invalid phone number. Use +639XXXXXXXXX or 09XXXXXXXXX.';
-  if (form.password.length < 8)      return 'Password must be at least 8 characters.';
+  if (!form.name.trim())  return 'Full name is required.';
+  if (!form.email.trim()) return 'Email address is required.';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+                          return 'Enter a valid email address.';
+  if (form.password.length < 8) return 'Password must be at least 8 characters.';
   if (!VALID_ROLES.includes(form.role)) return 'Invalid role.';
   return null;
 }
@@ -61,10 +51,10 @@ export default function UserManagement() {
     setSubmitting(true);
     try {
       await createUser({
-        name:         form.name.trim(),
-        phone_number: form.phone_number.trim(),
-        password:     form.password,
-        role:         form.role,
+        name:     form.name.trim(),
+        email:    form.email.trim(),
+        password: form.password,
+        role:     form.role,
       });
       flash(setMessage, 'User created successfully.');
       setForm(EMPTY_FORM);
@@ -123,16 +113,16 @@ export default function UserManagement() {
               />
             </div>
 
-            {/* Phone */}
+            {/* Email */}
             <div className="form-group">
-              <label className="form-label" htmlFor="um-phone">Phone Number</label>
+              <label className="form-label" htmlFor="um-email">Email Address</label>
               <input
-                id="um-phone"
+                id="um-email"
                 className="form-input"
-                type="tel"
-                placeholder="+639XXXXXXXXX  or  09XXXXXXXXX"
-                value={form.phone_number}
-                onChange={(e) => setForm({ ...form, phone_number: e.target.value.trim() })}
+                type="email"
+                placeholder="user@example.com"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value.trim() })}
                 required
                 autoComplete="off"
               />
@@ -190,7 +180,7 @@ export default function UserManagement() {
                 <tr>
                   <th>#</th>
                   <th>Name</th>
-                  <th>Phone Number</th>
+                  <th>Email</th>
                   <th>Role</th>
                   <th>Created</th>
                   <th>Action</th>
@@ -201,8 +191,8 @@ export default function UserManagement() {
                   <tr key={u.id}>
                     <td style={{ color: 'var(--text-light)', fontSize: '0.78rem' }}>{i + 1}</td>
                     <td style={{ fontWeight: 600 }}>{u.name}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--text-light)' }}>
-                      {u.phone_number}
+                    <td style={{ fontSize: '0.85rem', color: 'var(--text-light)' }}>
+                      {u.email}
                     </td>
                     <td><span className={`badge badge-${u.role}`}>{u.role}</span></td>
                     <td style={{ fontSize: '0.82rem', color: 'var(--text-light)' }}>

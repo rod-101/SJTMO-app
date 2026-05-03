@@ -14,13 +14,11 @@ const handleResponse = async (res) => {
 };
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-// phone_number is normalised by the backend before querying.
-// Accepted formats: +639XXXXXXXXX | 09XXXXXXXXX | 639XXXXXXXXX
-export const login = (phone_number, password) =>
+export const login = (email, password) =>
   fetch(`${BASE_URL}/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ phone_number, password }),
+    body: JSON.stringify({ email, password }),
   }).then(handleResponse);
 
 // ── Violations ────────────────────────────────────────────────────────────────

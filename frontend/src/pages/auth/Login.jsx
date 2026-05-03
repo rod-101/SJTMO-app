@@ -1,30 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { login } from '../../services/api';
-
-// ─── Phone utilities (mirrors backend/utils/phone.js) ────────────────────────
-// Accepted raw formats:  +639XXXXXXXXX | 09XXXXXXXXX | 639XXXXXXXXX
-const PH_INTL_RE  = /^\+639\d{9}$/;
-const PH_LOCAL_RE = /^09\d{9}$/;
-const PH_NOPFX_RE = /^639\d{9}$/;
-
-function normalizePhone(raw) {
-  const s = raw.trim().replace(/\s+/g, '');
-  if (PH_INTL_RE.test(s))  return s;
-  if (PH_LOCAL_RE.test(s)) return '+63' + s.slice(1);
-  if (PH_NOPFX_RE.test(s)) return '+' + s;
-  return null;
-}
-
-function classifyInput(raw) {
-  const s = raw.trim();
-  if (!s) return 'empty';
-  if (normalizePhone(s)) return 'valid';
-  // Detect a partial number being typed
-  if (/^[0+\d]/.test(s) && s.length <= 13) return 'partial';
-  return 'invalid';
-}
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const SignalIcon = () => (
@@ -53,41 +30,27 @@ const EyeIcon = ({ open }) => open ? (
 );
 
 export default function Login() {
-  const [phone,       setPhone]       = useState('');
-  const [password,    setPassword]    = useState('');
-  const [showPwd,     setShowPwd]     = useState(false);
-  const [error,       setError]       = useState('');
-  const [loading,     setLoading]     = useState(false);
-  const [touched,     setTouched]     = useState(false);    // show hint only after first keystroke
+  const [email,    setEmail]    = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd,  setShowPwd]  = useState(false);
+  const [error,    setError]    = useState('');
+  const [loading,  setLoading]  = useState(false);
 
   const { loginUser } = useAuth();
   const navigate      = useNavigate();
-
-  const phoneClass = useMemo(() => classifyInput(phone), [phone]);
-
-  // Feedback line shown below the phone input while typing
-  const hint = useMemo(() => {
-    if (!touched || !phone) return null;
-    if (phoneClass === 'valid')   return { text: 'Valid phone number', ok: true  };
-    if (phoneClass === 'partial') return { text: 'Format: +639XXXXXXXXX  or  09XXXXXXXXX', ok: null };
-    if (phoneClass === 'invalid') return { text: 'Not a valid Philippine phone number', ok: false };
-    return null;
-  }, [phone, phoneClass, touched]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
-    const normalized = normalizePhone(phone);
-    if (!normalized) {
-      setError('Enter a valid Philippine phone number (+639XXXXXXXXX or 09XXXXXXXXX).');
+    if (!email.trim()) {
+      setError('Enter your email address.');
       return;
     }
 
     setLoading(true);
     try {
-      // Send the normalised number so the backend receives a consistent format
-      const { user } = await login(normalized, password);
+      const { user } = await login(email.trim(), password);
       loginUser(user);
       if      (user.role === 'admin')    navigate('/admin');
       else if (user.role === 'enforcer') navigate('/enforcer');
@@ -126,31 +89,22 @@ export default function Login() {
         {/* ── Form ── */}
         <form onSubmit={handleSubmit} noValidate>
 
-          {/* Phone number */}
+          {/* Email */}
           <div className="form-group">
-            <label className="form-label" htmlFor="phone">Phone Number</label>
+            <label className="form-label" htmlFor="email">Email Address</label>
             <input
-              id="phone"
-              className={`form-input${hint && hint.ok === false ? ' input-invalid' : hint && hint.ok === true ? ' input-valid' : ''}`}
-              type="tel"
-              inputMode="tel"
-              placeholder="+639XXXXXXXXX  or  09XXXXXXXXX"
-              value={phone}
-              onChange={(e) => {
-                setPhone(e.target.value);
-                setTouched(true);
-                setError('');
-              }}
+              id="email"
+              className="form-input"
+              type="email"
+              inputMode="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(''); }}
               required
-              autoComplete="tel"
+              autoComplete="email"
               autoFocus
               spellCheck={false}
             />
-            {hint && (
-              <p className={`field-hint ${hint.ok === true ? 'field-hint--ok' : hint.ok === false ? 'field-hint--error' : 'field-hint--neutral'}`}>
-                {hint.text}
-              </p>
-            )}
           </div>
 
           {/* Password */}
