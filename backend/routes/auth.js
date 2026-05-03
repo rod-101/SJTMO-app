@@ -33,13 +33,14 @@ router.post("/", async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      console.log("Login attempt with non-existent email:", normalizedEmail);
       return res.status(401).json({ error: "Invalid credentials." });
     }
-
     const user = result.rows[0];
     const valid = await bcrypt.compare(password, user.password);
 
     if (!valid) {
+      console.log("Invalid password for:", normalizedEmail);
       return res.status(401).json({ error: "Invalid credentials." });
     }
 
