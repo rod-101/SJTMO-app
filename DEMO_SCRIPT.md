@@ -5,6 +5,7 @@
 ---
 
 ### SCENE 1: Introduction (1 min)
+
 > "This is the San Jose Traffic Management Office System — a unified PWA supporting three roles: Admin, Enforcer, and Motorist."
 
 Open browser to `http://localhost:3000`
@@ -88,6 +89,7 @@ You are now on the Enforcer Panel:
 ### SCENE 7: Wrap Up (1 min)
 
 > "The system demonstrates:
+>
 > - Role-based access control
 > - Real-time violation tracking
 > - Interactive map with color-coded pins
@@ -99,6 +101,7 @@ You are now on the Enforcer Panel:
 ## Features Checklist
 
 ### Must-Have (All Working ✅)
+
 - [x] Login with role detection
 - [x] Role-based routing (admin/enforcer/motorist)
 - [x] Issue violation (enforcer)
@@ -113,12 +116,14 @@ You are now on the Enforcer Panel:
 - [x] Auto-refresh every 15 seconds (admin)
 
 ### Nice-to-Have (Simplified ✅)
+
 - [x] Violation breakdown chart (CSS bars)
 - [x] Demo quick-login buttons
 - [x] Responsive mobile layout
 - [x] Empty states with icons
 
 ### Intentionally Omitted (Out of Scope)
+
 - JWT auth tokens (plain DB lookup is fine for demo)
 - File/photo attachments
 - Push notifications
@@ -129,7 +134,7 @@ You are now on the Enforcer Panel:
 ## Color Coding Reference
 
 | Violation Type    | Pin Color |
-|-------------------|-----------|
+| ----------------- | --------- |
 | No Helmet         | 🟢 Green  |
 | Illegal Parking   | 🔵 Blue   |
 | No License        | 🔴 Red    |

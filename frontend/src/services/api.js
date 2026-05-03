@@ -1,23 +1,23 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 const handleResponse = async (res) => {
   const text = await res.text();
-  if (!text) throw new Error('Server returned an empty response');
+  if (!text) throw new Error("Server returned an empty response");
   let data;
   try {
     data = JSON.parse(text);
   } catch {
     throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`);
   }
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 };
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (email, password) =>
   fetch(`${BASE_URL}/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
   }).then(handleResponse);
 
@@ -31,15 +31,15 @@ export const getViolations = (motoristName = null) => {
 
 export const createViolation = (data) =>
   fetch(`${BASE_URL}/violations`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const updateViolationStatus = (id, status) =>
   fetch(`${BASE_URL}/violations/${id}/status`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ status }),
   }).then(handleResponse);
 
@@ -48,15 +48,15 @@ export const getViolationTypes = () =>
 
 export const addViolationType = (name) =>
   fetch(`${BASE_URL}/violations/types`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ name }),
   }).then(handleResponse);
 
 export const updateViolation = (id, data) =>
   fetch(`${BASE_URL}/violations/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then(handleResponse);
 
@@ -66,23 +66,24 @@ export const getOrdinances = () =>
 
 export const uploadOrdinance = (formData) =>
   fetch(`${BASE_URL}/ordinances`, {
-    method: 'POST',
+    method: "POST",
     body: formData,
   }).then(handleResponse);
 
 export const deleteOrdinance = (id) =>
-  fetch(`${BASE_URL}/ordinances/${id}`, { method: 'DELETE' }).then(handleResponse);
+  fetch(`${BASE_URL}/ordinances/${id}`, { method: "DELETE" }).then(
+    handleResponse,
+  );
 
 // ── Users ─────────────────────────────────────────────────────────────────────
-export const getUsers = () =>
-  fetch(`${BASE_URL}/users`).then(handleResponse);
+export const getUsers = () => fetch(`${BASE_URL}/users`).then(handleResponse);
 
 export const createUser = (data) =>
   fetch(`${BASE_URL}/users`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const deleteUser = (id) =>
-  fetch(`${BASE_URL}/users/${id}`, { method: 'DELETE' }).then(handleResponse);
+  fetch(`${BASE_URL}/users/${id}`, { method: "DELETE" }).then(handleResponse);

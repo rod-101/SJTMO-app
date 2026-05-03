@@ -1,6 +1,7 @@
 # SJTMO App — Setup Guide
 
 ## Prerequisites
+
 - Node.js 18+
 - PostgreSQL 14+
 - npm
@@ -45,6 +46,7 @@ PORT=5000
 Open two terminals:
 
 **Terminal 1 — Backend**
+
 ```bash
 cd backend
 npm install
@@ -52,12 +54,14 @@ npm run dev
 ```
 
 You should see:
+
 ```
 SJTMO Backend running on http://localhost:5000
 Connected to PostgreSQL database
 ```
 
 **Terminal 2 — Frontend**
+
 ```bash
 cd frontend
 npm install
@@ -70,25 +74,28 @@ Browser opens at `http://localhost:3000`
 
 ## Step 4 — Test Login
 
-| Role     | Email                 | Password |
-|----------|-----------------------|----------|
-| Admin    | admin@test.com        | 123456   |
-| Enforcer | enforcer@test.com     | 123456   |
-| Motorist | motorist@test.com     | 123456   |
+| Role     | Email             | Password |
+| -------- | ----------------- | -------- |
+| Admin    | admin@test.com    | 123456   |
+| Enforcer | enforcer@test.com | 123456   |
+| Motorist | motorist@test.com | 123456   |
 
 ---
 
 ## Troubleshooting
 
 **"Cannot connect to database"**
+
 - Check PostgreSQL is running
 - Verify credentials in `backend/.env`
 
 **"CORS error" in browser**
+
 - Make sure backend is running on port 5000
 - Check `frontend/.env` has `REACT_APP_API_URL=http://localhost:5000`
 
 **Map not showing**
+
 - Leaflet needs an internet connection for tile images
 - Violations need latitude/longitude to appear as pins
 

@@ -1,12 +1,12 @@
-import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './context/AuthContext';
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
-import LandingPage from './pages/landing/LandingPage';
-import Login from './pages/auth/Login';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import EnforcerDashboard from './pages/enforcer/EnforcerDashboard';
-import MotoristDashboard from './pages/motorist/MotoristDashboard';
+import LandingPage from "./pages/landing/LandingPage";
+import Login from "./pages/auth/Login";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import EnforcerDashboard from "./pages/enforcer/EnforcerDashboard";
+import MotoristDashboard from "./pages/motorist/MotoristDashboard";
 
 const ProtectedRoute = ({ children, role }) => {
   const { user } = useAuth();
@@ -19,9 +19,9 @@ const ProtectedRoute = ({ children, role }) => {
 const HomeRoute = () => {
   const { user } = useAuth();
   if (!user) return <LandingPage />;
-  if (user.role === 'admin')    return <Navigate to="/admin"    replace />;
-  if (user.role === 'enforcer') return <Navigate to="/enforcer" replace />;
-  if (user.role === 'motorist') return <Navigate to="/motorist" replace />;
+  if (user.role === "admin") return <Navigate to="/admin" replace />;
+  if (user.role === "enforcer") return <Navigate to="/enforcer" replace />;
+  if (user.role === "motorist") return <Navigate to="/motorist" replace />;
   return <Navigate to="/login" replace />;
 };
 

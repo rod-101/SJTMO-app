@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
-      const stored = localStorage.getItem('sjtmo_user');
+      const stored = localStorage.getItem("sjtmo_user");
       return stored ? JSON.parse(stored) : null;
     } catch {
       return null;
@@ -14,12 +14,12 @@ export const AuthProvider = ({ children }) => {
 
   const loginUser = (userData) => {
     setUser(userData);
-    localStorage.setItem('sjtmo_user', JSON.stringify(userData));
+    localStorage.setItem("sjtmo_user", JSON.stringify(userData));
   };
 
   const logoutUser = () => {
     setUser(null);
-    localStorage.removeItem('sjtmo_user');
+    localStorage.removeItem("sjtmo_user");
   };
 
   return (
@@ -31,6 +31,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) throw new Error("useAuth must be used within AuthProvider");
   return ctx;
 };
