@@ -9,7 +9,7 @@ const roleLabels = {
   motorist: "🚗 Motorist",
 };
 
-export default function Navbar({ title }) {
+export default function Navbar({ title, showMenuToggle, onMenuToggle }) {
   const { user, logoutUser } = useAuth();
   const navigate = useNavigate();
 
@@ -21,6 +21,13 @@ export default function Navbar({ title }) {
   return (
     <nav className="navbar">
       <div className="navbar-brand">
+        {showMenuToggle && (
+          <button className="navbar-menu-btn" onClick={onMenuToggle} aria-label="Toggle menu">
+            <span />
+            <span />
+            <span />
+          </button>
+        )}
         <span>🚦</span>
         <div
           style={{ display: "flex", flexDirection: "column", lineHeight: 1.1 }}
