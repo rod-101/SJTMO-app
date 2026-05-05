@@ -31,9 +31,22 @@ DO $$ BEGIN
   END IF;
 END $$;
 ALTER TABLE users ALTER COLUMN role SET NOT NULL;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_no  VARCHAR(20);
-ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active   BOOLEAN DEFAULT TRUE;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at  TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_no    VARCHAR(20);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active     BOOLEAN     DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE users ADD COLUMN IF NOT EXISTS status        VARCHAR(20) DEFAULT 'active';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login    TIMESTAMPTZ;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT         DEFAULT 0;
+
+-- Backfill status from legacy is_active flag
+UPDATE users SET status = CASE WHEN is_active = FALSE THEN 'inactive' ELSE 'active' END
+  WHERE status IS NULL;
+
+ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
+ALTER TABLE users ADD CONSTRAINT users_status_check
+  CHECK (status IN ('active','inactive','suspended'));
+
+CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 
 -- Expand role CHECK to include treasury (drop any existing variant)
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;

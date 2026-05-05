@@ -10,7 +10,7 @@ const roleLabels = {
   motorist: "🚗 Motorist",
 };
 
-export default function Navbar({ title, showMenuToggle, onMenuToggle }) {
+export default function Navbar({ title, showMenuToggle, onMenuToggle, hideUser }) {
   const { user, logoutUser } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
@@ -48,17 +48,21 @@ export default function Navbar({ title, showMenuToggle, onMenuToggle }) {
         </div>
       </div>
       <div className="navbar-user">
-        <span style={{ opacity: 0.8 }}>{user?.name}</span>
-        <span
-          style={{
-            background: "rgba(255,255,255,0.2)",
-            padding: "2px 8px",
-            borderRadius: 12,
-            fontSize: "0.75rem",
-          }}
-        >
-          {roleLabels[user?.role] || user?.role}
-        </span>
+        {!hideUser && (
+          <>
+            <span style={{ opacity: 0.8 }}>{user?.name}</span>
+            <span
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                padding: "2px 8px",
+                borderRadius: 12,
+                fontSize: "0.75rem",
+              }}
+            >
+              {roleLabels[user?.role] || user?.role}
+            </span>
+          </>
+        )}
         <button
           className="theme-toggle"
           onClick={toggleTheme}
@@ -67,9 +71,11 @@ export default function Navbar({ title, showMenuToggle, onMenuToggle }) {
         >
           {theme === "dark" ? "☀️" : "🌙"}
         </button>
-        <button className="btn-logout" onClick={handleLogout}>
-          Logout
-        </button>
+        {!hideUser && (
+          <button className="btn-logout" onClick={handleLogout}>
+            Logout
+          </button>
+        )}
       </div>
     </nav>
   );

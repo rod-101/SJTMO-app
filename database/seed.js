@@ -56,6 +56,18 @@ const USERS = [
     role: "motorist",
   },
   {
+    name: "Allan Dilon N. Esteves",
+    email: "allan@gmail.com",
+    password: "allan123123",
+    role: "motorist",
+  },
+  {
+    name: "Cindy R. Salazar",
+    email: "cindy@gmail.com",
+    password: "cindy123123",
+    role: "motorist",
+  },
+  {
     name: "Treasury Officer",
     email: "treasury@sjtmo.gov.ph",
     password: "Treasury@2025",

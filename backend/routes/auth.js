@@ -28,7 +28,8 @@ router.post("/", async (req, res) => {
 
   try {
     const result = await pool.query(
-      "SELECT id, name, email, role, password FROM users WHERE email = $1 LIMIT 1",
+      `SELECT id, name, email, role, password, status, token_version
+       FROM users WHERE email = $1 LIMIT 1`,
       [normalizedEmail],
     );
 
@@ -43,6 +44,21 @@ router.post("/", async (req, res) => {
       console.log("Invalid password for:", normalizedEmail);
       return res.status(401).json({ error: "Invalid credentials." });
     }
+
+    if (user.status === "suspended") {
+      return res
+        .status(403)
+        .json({ error: "Account suspended. Contact an administrator." });
+    }
+    if (user.status === "inactive") {
+      return res
+        .status(403)
+        .json({ error: "Account is inactive. Contact an administrator." });
+    }
+
+    await pool.query("UPDATE users SET last_login = NOW() WHERE id = $1", [
+      user.id,
+    ]);
 
     const { password: _pw, ...safeUser } = user;
     res.json({ success: true, user: safeUser });

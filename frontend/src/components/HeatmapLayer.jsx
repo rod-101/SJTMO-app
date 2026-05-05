@@ -8,23 +8,32 @@ export default function HeatmapLayer({ points, radius, blur, maxZoom, max }) {
   const layerRef = useRef(null);
 
   useEffect(() => {
-    // Create layer on first render
-    if (!layerRef.current) {
-      layerRef.current = L.heatLayer([], {
-        radius,
-        blur,
-        maxZoom,
-        max,
-        gradient: { 0.2: "#2196f3", 0.5: "#ff9800", 0.8: "#f44336", 1.0: "#b71c1c" },
-      }).addTo(map);
-    }
+    if (!map || !map.getContainer()) return;
+
+    const layer = L.heatLayer([], {
+      radius,
+      blur,
+      maxZoom,
+      max,
+      gradient: { 0.2: "#2196f3", 0.5: "#ff9800", 0.8: "#f44336", 1.0: "#b71c1c" },
+    });
+
+    // Patch _redraw so it silently bails if the map is already gone
+    const originalRedraw = layer._redraw.bind(layer);
+    layer._redraw = function () {
+      if (!this._map || !this._map.getContainer()) return;
+      originalRedraw();
+    };
+
+    layer.addTo(map);
+    layerRef.current = layer;
+
     return () => {
-      if (layerRef.current) {
-        map.removeLayer(layerRef.current);
-        layerRef.current = null;
+      layerRef.current = null;
+      if (map && map.hasLayer(layer)) {
+        map.removeLayer(layer);
       }
     };
-    // only on mount/unmount — options are applied separately below
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map]);
 

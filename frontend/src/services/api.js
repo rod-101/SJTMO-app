@@ -76,14 +76,54 @@ export const deleteOrdinance = (id) =>
   );
 
 // ── Users ─────────────────────────────────────────────────────────────────────
-export const getUsers = () => fetch(`${BASE_URL}/users`).then(handleResponse);
+const actorHeaders = () => {
+  try {
+    const raw = localStorage.getItem("sjtmo_user");
+    if (!raw) return { "Content-Type": "application/json" };
+    const u = JSON.parse(raw);
+    return { "Content-Type": "application/json", "X-Actor-Id": u?.id || "" };
+  } catch {
+    return { "Content-Type": "application/json" };
+  }
+};
+
+export const getUsers = () =>
+  fetch(`${BASE_URL}/users`, { headers: actorHeaders() }).then(handleResponse);
 
 export const createUser = (data) =>
   fetch(`${BASE_URL}/users`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: actorHeaders(),
+    body: JSON.stringify(data),
+  }).then(handleResponse);
+
+export const updateUser = (id, data) =>
+  fetch(`${BASE_URL}/users/${id}`, {
+    method: "PATCH",
+    headers: actorHeaders(),
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const deleteUser = (id) =>
-  fetch(`${BASE_URL}/users/${id}`, { method: "DELETE" }).then(handleResponse);
+  fetch(`${BASE_URL}/users/${id}`, {
+    method: "DELETE",
+    headers: actorHeaders(),
+  }).then(handleResponse);
+
+export const resetUserPassword = (id, password) =>
+  fetch(`${BASE_URL}/users/${id}/reset-password`, {
+    method: "POST",
+    headers: actorHeaders(),
+    body: JSON.stringify({ password }),
+  }).then(handleResponse);
+
+export const forceLogoutUser = (id) =>
+  fetch(`${BASE_URL}/users/${id}/force-logout`, {
+    method: "POST",
+    headers: actorHeaders(),
+  }).then(handleResponse);
+
+export const getUserActivity = (id) =>
+  fetch(`${BASE_URL}/users/${id}/activity`, {
+    headers: actorHeaders(),
+  }).then(handleResponse);
