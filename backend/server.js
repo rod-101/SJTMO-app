@@ -28,11 +28,13 @@ const authRoutes = require("./routes/auth");
 const violationRoutes = require("./routes/violations");
 const userRoutes = require("./routes/users");
 const ordinanceRoutes = require("./routes/ordinances");
+const paymentRoutes = require("./routes/payments");
 
 app.use("/login", authRoutes);
 app.use("/violations", violationRoutes);
 app.use("/users", userRoutes);
 app.use("/ordinances", ordinanceRoutes);
+app.use("/payments", paymentRoutes);
 
 // Health check — useful for Render uptime monitoring
 app.get("/health", (req, res) => {

@@ -35,10 +35,13 @@ export default function IssueViolation({ onSuccess }) {
   };
 
   const getGPS = () => {
+    // San Jose, Occidental Mindoro center with small random offset for demo
+    const SJ_LAT = 12.3547;
+    const SJ_LNG = 121.0694;
     if (!navigator.geolocation) {
       setGps({
-        lat: 14.5995 + (Math.random() - 0.5) * 0.02,
-        lng: 120.9842 + (Math.random() - 0.5) * 0.02,
+        lat: SJ_LAT + (Math.random() - 0.5) * 0.02,
+        lng: SJ_LNG + (Math.random() - 0.5) * 0.02,
         status: "mocked",
       });
       return;
@@ -53,8 +56,8 @@ export default function IssueViolation({ onSuccess }) {
         }),
       () =>
         setGps({
-          lat: 14.5995 + (Math.random() - 0.5) * 0.02,
-          lng: 120.9842 + (Math.random() - 0.5) * 0.02,
+          lat: SJ_LAT + (Math.random() - 0.5) * 0.02,
+          lng: SJ_LNG + (Math.random() - 0.5) * 0.02,
           status: "mocked",
         }),
       { timeout: 8000 },
@@ -77,11 +80,12 @@ export default function IssueViolation({ onSuccess }) {
     try {
       await createViolation({
         motorist_name: form.motorist_name.trim(),
-        violation_type: selectedTypes.join(", "), // stored as comma-separated
+        violation_type: selectedTypes.join(", "),
         notes: form.notes.trim(),
         latitude: gps.lat,
         longitude: gps.lng,
         enforcer_name: user.name,
+        enforcer_id: user.id,
       });
       setSuccess(true);
       setForm({ motorist_name: "", notes: "" });

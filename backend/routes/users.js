@@ -4,7 +4,7 @@ const bcrypt = require("bcryptjs");
 const pool = require("../db");
 
 const SALT_ROUNDS = 10;
-const VALID_ROLES = new Set(["admin", "enforcer", "motorist"]);
+const VALID_ROLES = new Set(["admin", "enforcer", "motorist", "treasury"]);
 
 // GET /users
 router.get("/", async (req, res) => {
@@ -39,7 +39,7 @@ router.post("/", async (req, res) => {
   if (!VALID_ROLES.has(role)) {
     return res
       .status(400)
-      .json({ error: "Invalid role. Must be admin, enforcer, or motorist." });
+      .json({ error: "Invalid role. Must be admin, enforcer, motorist, or treasury." });
   }
 
   if (typeof password !== "string" || password.length < 8) {

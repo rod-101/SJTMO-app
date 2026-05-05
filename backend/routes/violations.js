@@ -2,16 +2,35 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
-// GET /violations - get all violations (optionally filter by motorist name)
+const VALID_STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed"];
+
+// GET /violations
 router.get("/", async (req, res) => {
-  const { motorist } = req.query;
+  const { motorist, motorist_id } = req.query;
   try {
-    let query = "SELECT * FROM violations ORDER BY date_issued DESC";
+    let query = `
+      SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
+      FROM violations v
+      LEFT JOIN payments p ON p.violation_id = v.id
+      WHERE v.is_deleted = FALSE
+      ORDER BY v.date_issued DESC`;
     let params = [];
 
-    if (motorist) {
-      query =
-        "SELECT * FROM violations WHERE LOWER(motorist_name) = LOWER($1) ORDER BY date_issued DESC";
+    if (motorist_id) {
+      query = `
+        SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
+        FROM violations v
+        LEFT JOIN payments p ON p.violation_id = v.id
+        WHERE v.motorist_id = $1 AND v.is_deleted = FALSE
+        ORDER BY v.date_issued DESC`;
+      params = [motorist_id];
+    } else if (motorist) {
+      query = `
+        SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
+        FROM violations v
+        LEFT JOIN payments p ON p.violation_id = v.id
+        WHERE LOWER(v.motorist_name) = LOWER($1) AND v.is_deleted = FALSE
+        ORDER BY v.date_issued DESC`;
       params = [motorist];
     }
 
@@ -23,38 +42,67 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /violations - create new violation
+// POST /violations - issue a new ticket
 router.post("/", async (req, res) => {
   const {
     motorist_name,
+    motorist_id,
     violation_type,
     notes,
     latitude,
     longitude,
     enforcer_name,
+    enforcer_id,
   } = req.body;
 
   if (!motorist_name || !violation_type || !enforcer_name) {
-    return res
-      .status(400)
-      .json({
-        error: "motorist_name, violation_type, and enforcer_name are required",
+    return res.status(400).json({
+      error: "motorist_name, violation_type, and enforcer_name are required",
+    });
+  }
+
+  // Reject coordinates outside San Jose, Occidental Mindoro
+  if (latitude != null && longitude != null) {
+    const lat = parseFloat(latitude);
+    const lng = parseFloat(longitude);
+    const inBounds =
+      lat >= 12.28 && lat <= 12.43 && lng >= 120.99 && lng <= 121.15;
+    if (!inBounds) {
+      return res.status(400).json({
+        error: "Coordinates must be within San Jose, Occidental Mindoro.",
       });
+    }
   }
 
   try {
     const result = await pool.query(
-      `INSERT INTO violations (motorist_name, violation_type, notes, latitude, longitude, enforcer_name)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+      `INSERT INTO violations
+         (motorist_name, motorist_id, violation_type, notes, latitude, longitude, enforcer_name, enforcer_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING *`,
       [
         motorist_name,
+        motorist_id || null,
         violation_type,
         notes || "",
         latitude || null,
         longitude || null,
         enforcer_name,
+        enforcer_id || null,
       ],
     );
+
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
+       VALUES ($1, $2, 'TICKET_ISSUED', 'violations', $3, $4)`,
+      [
+        enforcer_id || null,
+        enforcer_name,
+        result.rows[0].id,
+        JSON.stringify({ ticket_no: result.rows[0].ticket_no, motorist_name, violation_type }),
+      ],
+    );
+
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Create violation error:", err);
@@ -65,21 +113,34 @@ router.post("/", async (req, res) => {
 // PATCH /violations/:id/status - update violation status
 router.patch("/:id/status", async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, changed_by_id, changed_by_name } = req.body;
 
-  const validStatuses = ["pending", "resolved", "dismissed"];
-  if (!validStatuses.includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
+  if (!VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` });
   }
 
   try {
+    const before = await pool.query("SELECT status FROM violations WHERE id = $1", [id]);
+    if (before.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
+
     const result = await pool.query(
-      "UPDATE violations SET status = $1 WHERE id = $2 RETURNING *",
+      "UPDATE violations SET status = $1 WHERE id = $2 AND is_deleted = FALSE RETURNING *",
       [status, id],
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Violation not found" });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
+
+    await pool.query(
+      `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, old_value, new_value)
+       VALUES ($1, $2, 'STATUS_CHANGED', 'violations', $3, $4, $5)`,
+      [
+        changed_by_id || null,
+        changed_by_name || null,
+        id,
+        JSON.stringify({ status: before.rows[0].status }),
+        JSON.stringify({ status }),
+      ],
+    );
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Update violation error:", err);
@@ -87,15 +148,13 @@ router.patch("/:id/status", async (req, res) => {
   }
 });
 
-// PUT /violations/:id - full edit of a violation record
+// PUT /violations/:id - full edit
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { motorist_name, violation_type, notes, status, enforcer_name } =
-    req.body;
+  const { motorist_name, violation_type, notes, status, enforcer_name } = req.body;
 
-  const validStatuses = ["pending", "resolved", "dismissed"];
-  if (status && !validStatuses.includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
+  if (status && !VALID_STATUSES.includes(status)) {
+    return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` });
   }
 
   try {
@@ -106,7 +165,7 @@ router.put("/:id", async (req, res) => {
         notes          = COALESCE($3, notes),
         status         = COALESCE($4, status),
         enforcer_name  = COALESCE($5, enforcer_name)
-       WHERE id = $6 RETURNING *`,
+       WHERE id = $6 AND is_deleted = FALSE RETURNING *`,
       [
         motorist_name || null,
         violation_type || null,
@@ -116,9 +175,7 @@ router.put("/:id", async (req, res) => {
         id,
       ],
     );
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: "Violation not found" });
-    }
+    if (result.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Edit violation error:", err);
@@ -126,12 +183,25 @@ router.put("/:id", async (req, res) => {
   }
 });
 
-// GET /violations/types - get all violation types
-router.get("/types", async (req, res) => {
+// DELETE /violations/:id - soft delete
+router.delete("/:id", async (req, res) => {
   try {
     const result = await pool.query(
-      "SELECT * FROM violation_types ORDER BY id",
+      "UPDATE violations SET is_deleted = TRUE WHERE id = $1 RETURNING id",
+      [req.params.id],
     );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete violation error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// GET /violations/types
+router.get("/types", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM violation_types ORDER BY id");
     res.json(result.rows);
   } catch (err) {
     console.error("Get violation types error:", err);
@@ -139,19 +209,20 @@ router.get("/types", async (req, res) => {
   }
 });
 
-// POST /violations/types - add new violation type
+// POST /violations/types
 router.post("/types", async (req, res) => {
-  const { name } = req.body;
+  const { name, fine } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Violation type name is required" });
   }
   try {
     const result = await pool.query(
-      "INSERT INTO violation_types (name) VALUES ($1) RETURNING *",
-      [name.trim()],
+      "INSERT INTO violation_types (name, fine) VALUES ($1, $2) RETURNING *",
+      [name.trim(), fine || 0],
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    if (err.code === "23505") return res.status(409).json({ error: "Violation type already exists." });
     console.error("Create violation type error:", err);
     res.status(500).json({ error: "Server error" });
   }
