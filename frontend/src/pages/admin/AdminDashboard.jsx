@@ -335,7 +335,7 @@ export default function AdminDashboard() {
             />
           )}
 
-          {tab === "users" && <UserManagement />}
+          {tab === "users" && <UserManagement violations={violations} />}
 
           {tab === "ordinances" && <OrdinancesPanel />}
 
