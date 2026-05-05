@@ -36,8 +36,8 @@ const LEGEND = [
   { type: "Other", color: "grey" },
 ];
 
-// Default center: Philippines (San Jose area)
-const DEFAULT_CENTER = [14.5995, 120.9842];
+// Default center: San Jose, Occidental Mindoro, Philippines
+const DEFAULT_CENTER = [12.3547, 121.0694];
 
 export default function ViolationMap({ violations }) {
   const withCoords = violations.filter((v) => v.latitude && v.longitude);

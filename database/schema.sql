@@ -66,10 +66,10 @@ ON CONFLICT DO NOTHING;
 INSERT INTO violations
   (motorist_name, violation_type, notes, latitude, longitude, enforcer_name, status)
 VALUES
-  ('Pedro Motorist', 'No Helmet',         'First offense, no helmet on EDSA',                  14.5995, 120.9842, 'Enforcer Juan', 'pending'),
-  ('Juan dela Cruz', 'Illegal Parking',   'Parked on no-parking zone near City Hall',           14.6010, 120.9820, 'Enforcer Juan', 'pending'),
-  ('Maria Santos',   'No License',        'Could not produce license during checkpoint',        14.5980, 120.9860, 'Enforcer Juan', 'resolved'),
-  ('Carlos Reyes',   'Reckless Driving',  'Weaving through traffic dangerously',                14.5970, 120.9880, 'Enforcer Juan', 'pending'),
-  ('Pedro Motorist', 'Beating Red Light', 'Ran red light at main intersection',                 14.5950, 120.9900, 'Enforcer Juan', 'pending');
+  ('Pedro Motorist', 'No Helmet',         'First offense, no helmet along Rizal Avenue',        12.3547, 121.0694, 'Enforcer Juan', 'pending'),
+  ('Juan dela Cruz', 'Illegal Parking',   'Parked on no-parking zone near San Jose City Hall',  12.3560, 121.0710, 'Enforcer Juan', 'pending'),
+  ('Maria Santos',   'No License',        'Could not produce license at San Jose checkpoint',   12.3530, 121.0675, 'Enforcer Juan', 'resolved'),
+  ('Carlos Reyes',   'Reckless Driving',  'Weaving through traffic near San Jose public market',12.3572, 121.0658, 'Enforcer Juan', 'pending'),
+  ('Pedro Motorist', 'Beating Red Light', 'Ran red light at Roxas-Rizal intersection',          12.3518, 121.0720, 'Enforcer Juan', 'pending');
 
 -- User accounts are seeded with hashed passwords via: node database/seed.js
