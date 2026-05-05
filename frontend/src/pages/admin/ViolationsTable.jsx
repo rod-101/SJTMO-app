@@ -237,6 +237,8 @@ export default function ViolationsTable({ violations, onRefresh }) {
   const [editViolation, setEditViolation] = useState(null);
   const [showAddType, setShowAddType] = useState(false);
   const [violationTypes, setViolationTypes] = useState([]);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Load violation types for edit modal dropdown
   useEffect(() => {
@@ -263,6 +265,12 @@ export default function ViolationsTable({ violations, onRefresh }) {
     const matchType = filterType === "all" || v.violation_type === filterType;
     return matchSearch && matchStatus && matchType;
   });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  const resetPage = () => setPage(1);
 
   const handleStatusChange = async (id, status) => {
     setUpdating(id);
@@ -305,7 +313,7 @@ export default function ViolationsTable({ violations, onRefresh }) {
               className="form-input"
               placeholder="Motorist, TCT, type, enforcer..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); resetPage(); }}
             />
           </div>
           <div style={{ flex: "0 1 160px" }}>
@@ -313,7 +321,7 @@ export default function ViolationsTable({ violations, onRefresh }) {
             <select
               className="form-select"
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => { setFilterStatus(e.target.value); resetPage(); }}
             >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
@@ -326,7 +334,7 @@ export default function ViolationsTable({ violations, onRefresh }) {
             <select
               className="form-select"
               value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
+              onChange={(e) => { setFilterType(e.target.value); resetPage(); }}
             >
               <option value="all">All Types</option>
               {types.map((t) => (
@@ -367,7 +375,7 @@ export default function ViolationsTable({ violations, onRefresh }) {
           </span>
         </div>
         <div className="table-wrapper">
-          {filtered.length === 0 ? (
+          {paginated.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">🔍</div>
               <div className="empty-state-text">
@@ -389,7 +397,7 @@ export default function ViolationsTable({ violations, onRefresh }) {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((v) => (
+                {paginated.map((v) => (
                   <tr key={v.id}>
                     <td>
                       <span className="tct-code">{getTCT(v)}</span>
@@ -476,6 +484,66 @@ export default function ViolationsTable({ violations, onRefresh }) {
             </table>
           )}
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, flexWrap: "wrap", gap: 8 }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
+              Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div style={{ display: "flex", gap: 4 }}>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setPage(1)}
+                disabled={safePage === 1}
+              >
+                «
+              </button>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+              >
+                ‹ Prev
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                .reduce((acc, p, idx, arr) => {
+                  if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === "..." ? (
+                    <span key={`ellipsis-${i}`} style={{ padding: "6px 4px", fontSize: "0.82rem", color: "var(--text-muted)" }}>…</span>
+                  ) : (
+                    <button
+                      key={p}
+                      className={`btn btn-sm ${safePage === p ? "btn-primary" : "btn-outline"}`}
+                      onClick={() => setPage(p)}
+                      style={{ minWidth: 34 }}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+              >
+                Next ›
+              </button>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={() => setPage(totalPages)}
+                disabled={safePage === totalPages}
+              >
+                »
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Edit Modal */}

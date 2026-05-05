@@ -1,5 +1,6 @@
 import React from "react";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { useNavigate } from "react-router-dom";
 import "../App.css";
 
@@ -11,6 +12,7 @@ const roleLabels = {
 
 export default function Navbar({ title, showMenuToggle, onMenuToggle }) {
   const { user, logoutUser } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -57,6 +59,14 @@ export default function Navbar({ title, showMenuToggle, onMenuToggle }) {
         >
           {roleLabels[user?.role] || user?.role}
         </span>
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
         <button className="btn-logout" onClick={handleLogout}>
           Logout
         </button>
