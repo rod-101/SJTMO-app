@@ -45,6 +45,7 @@ app.get("/health", (req, res) => {
 // Adds columns introduced after the initial schema without requiring a manual
 // migration run. Safe to re-run — all statements use IF NOT EXISTS / DO blocks.
 const pool = require("./db");
+const { startOverdueJob } = require("./services/overdueJob");
 
 async function runStartupMigrations() {
   const migrations = [
@@ -81,6 +82,7 @@ async function runStartupMigrations() {
 runStartupMigrations()
   .catch((err) => console.error("Startup migration error:", err.message))
   .finally(() => {
+    startOverdueJob();
     app.listen(PORT, () => {
       console.log(`SJTMO Backend running on port ${PORT}`);
     });

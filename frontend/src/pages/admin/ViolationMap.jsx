@@ -185,6 +185,13 @@ export default function ViolationMap({ violations }) {
     return [...new Set(names)].sort();
   }, [violations]);
 
+  const violationTypes = useMemo(() => {
+    const types = violations
+      .flatMap((v) => (v.violation_type || "").split(",").map((t) => t.trim()))
+      .filter(Boolean);
+    return [...new Set(types)].sort();
+  }, [violations]);
+
   const withCoords = useMemo(
     () => violations.filter((v) => v.latitude && v.longitude),
     [violations],
@@ -206,6 +213,7 @@ export default function ViolationMap({ violations }) {
         filters={filters}
         onChange={setFilters}
         enforcers={enforcers}
+        violationTypes={violationTypes}
         total={withCoords.length}
         filtered={filtered.length}
       />

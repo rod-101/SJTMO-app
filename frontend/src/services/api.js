@@ -60,6 +60,11 @@ export const updateViolation = (id, data) =>
     body: JSON.stringify(data),
   }).then(handleResponse);
 
+export const deleteViolation = (id) =>
+  fetch(`${BASE_URL}/violations/${id}`, {
+    method: "DELETE",
+  }).then(handleResponse);
+
 // ── Ordinances ────────────────────────────────────────────────────────────────
 export const getOrdinances = () =>
   fetch(`${BASE_URL}/ordinances`).then(handleResponse);

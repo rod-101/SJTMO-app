@@ -47,6 +47,7 @@ const STATUS_COLORS = {
   resolved:  "#2e7d32",
   dismissed: "#757575",
   disputed:  "#6a1b9a",
+  overdue:   "#b71c1c",
 };
 
 function buildPopupHTML(v) {

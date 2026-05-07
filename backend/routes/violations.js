@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
-const VALID_STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed"];
+const VALID_STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed", "overdue"];
 
 // GET /violations
 router.get("/", async (req, res) => {

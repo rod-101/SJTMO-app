@@ -80,7 +80,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS violations (
     id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_no       VARCHAR(30)  UNIQUE NOT NULL DEFAULT (
-                      'SJTMO-' || to_char(NOW(),'YYYY') || '-' || lpad(nextval('ticket_seq')::text,5,'0')
+                      'TCT-' || lpad(nextval('ticket_seq')::text,5,'0')
                     ),
     motorist_id     UUID         REFERENCES users(id) ON DELETE SET NULL,
     motorist_name   VARCHAR(150) NOT NULL,
@@ -90,7 +90,7 @@ CREATE TABLE IF NOT EXISTS violations (
     notes           TEXT,
     date_issued     TIMESTAMPTZ  DEFAULT NOW(),
     status          VARCHAR(20)  NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending','paid','resolved','dismissed','disputed')),
+                    CHECK (status IN ('pending','paid','resolved','dismissed','disputed','overdue')),
     latitude        DECIMAL(10,8),
     longitude       DECIMAL(11,8),
     is_deleted      BOOLEAN      DEFAULT FALSE,
@@ -114,18 +114,18 @@ CREATE INDEX IF NOT EXISTS idx_violations_ticket_no ON violations(ticket_no);
 
 -- Backfill ticket_no for any existing rows that don't have one
 UPDATE violations
-   SET ticket_no = 'SJTMO-' || to_char(date_issued,'YYYY') || '-' || lpad(nextval('ticket_seq')::text,5,'0')
+   SET ticket_no = 'TCT-' || lpad(nextval('ticket_seq')::text,5,'0')
  WHERE ticket_no IS NULL;
 
 -- Enforce NOT NULL after backfill
 ALTER TABLE violations ALTER COLUMN ticket_no SET DEFAULT (
-  'SJTMO-' || to_char(NOW(),'YYYY') || '-' || lpad(nextval('ticket_seq')::text,5,'0')
+  'TCT-' || lpad(nextval('ticket_seq')::text,5,'0')
 );
 
 -- Expand status CHECK to include new values
 ALTER TABLE violations DROP CONSTRAINT IF EXISTS violations_status_check;
 ALTER TABLE violations ADD CONSTRAINT violations_status_check
-  CHECK (status IN ('pending','paid','resolved','dismissed','disputed'));
+  CHECK (status IN ('pending','paid','resolved','dismissed','disputed','overdue'));
 
 -- ── Payments ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS payments (

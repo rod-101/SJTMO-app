@@ -1,15 +1,6 @@
 import React from "react";
 
-const VIOLATION_TYPES = [
-  "No Helmet",
-  "Illegal Parking",
-  "No License",
-  "Reckless Driving",
-  "Beating Red Light",
-  "Obstruction",
-];
-
-const STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed"];
+const STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed", "overdue"];
 
 const EMPTY = { type: "", status: "", enforcer: "", dateFrom: "", dateTo: "" };
 
@@ -17,6 +8,7 @@ export default function MapFilterPanel({
   filters,
   onChange,
   enforcers,
+  violationTypes = [],
   total,
   filtered,
 }) {
@@ -94,7 +86,7 @@ export default function MapFilterPanel({
             onChange={(e) => set("type", e.target.value)}
           >
             <option value="">All Types</option>
-            {VIOLATION_TYPES.map((t) => (
+            {violationTypes.map((t) => (
               <option key={t} value={t}>
                 {t}
               </option>

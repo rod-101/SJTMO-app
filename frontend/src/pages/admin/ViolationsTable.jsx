@@ -1,39 +1,125 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   updateViolationStatus,
   updateViolation,
+  deleteViolation,
   getViolationTypes,
   addViolationType,
 } from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
 
-// Generate a consistent TCT number from a violation record
-const getTCT = (v) => {
-  const year = new Date(v.date_issued).getFullYear();
-  const suffix = v.id.slice(-6).toUpperCase();
-  return `TCT-${year}-${suffix}`;
+// ─── Constants ────────────────────────────────────────────────────────────────
+const OVERDUE_DAYS = 14;
+
+const TABS = [
+  { key: "all",      label: "All Violations" },
+  { key: "pending",  label: "Pending"        },
+  { key: "paid",     label: "Paid"           },
+  { key: "overdue",  label: "Overdue"        },
+  { key: "disputed", label: "Disputed"       },
+];
+
+const STATUS_OPTIONS = [
+  "pending", "paid", "resolved", "dismissed", "disputed", "overdue",
+];
+
+const STATUS_LABEL = {
+  pending: "Pending", paid: "Paid", resolved: "Resolved",
+  dismissed: "Dismissed", disputed: "Disputed", overdue: "Overdue",
 };
 
-// Render comma-separated violation types as tag chips
-function TypeTags({ value }) {
-  if (!value) return null;
-  const types = value
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const formatDate = (d) =>
+  d ? new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
+
+const formatDateTime = (d) => (d ? new Date(d).toLocaleString() : "—");
+
+const daysSince = (d) => Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+
+const isOverdue = (v) => v.status === "overdue" || (v.status === "pending" && daysSince(v.date_issued) > OVERDUE_DAYS);
+
+const matchesTab = (v, tab) => {
+  if (tab === "all") return true;
+  if (tab === "overdue") return isOverdue(v);
+  return v.status === tab;
+};
+
+// ─── Toasts ───────────────────────────────────────────────────────────────────
+function useToasts() {
+  const [toasts, setToasts] = useState([]);
+  const idRef = useRef(0);
+  const push = (type, message) => {
+    const id = ++idRef.current;
+    setToasts((t) => [...t, { id, type, message }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3500);
+  };
+  return { toasts, success: (m) => push("success", m), error: (m) => push("error", m) };
+}
+
+function ToastStack({ toasts }) {
   return (
-    <div className="type-tags">
-      {types.map((t, i) => (
-        <span key={i} className="type-tag">
-          {t}
-        </span>
+    <div className="toast-stack">
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast toast-${t.type}`}>{t.message}</div>
       ))}
     </div>
   );
 }
 
-// ─── Edit Violation Modal ──────────────────────────────────────────────
-function EditModal({ violation, types, onClose, onSaved }) {
+// ─── Shared sub-components ────────────────────────────────────────────────────
+function StatusBadge({ violation }) {
+  const overdue = isOverdue(violation);
+  const status = overdue ? "overdue" : violation.status;
+  return <span className={`badge badge-${status}`}>{STATUS_LABEL[status] || status}</span>;
+}
+
+function SkeletonRows({ count = 5 }) {
+  return <>{Array.from({ length: count }).map((_, i) => <div key={i} className="skeleton-row" />)}</>;
+}
+
+function TypeTags({ value }) {
+  if (!value) return null;
+  const types = value.split(",").map((t) => t.trim()).filter(Boolean);
+  return (
+    <div className="type-tags">
+      {types.map((t, i) => <span key={i} className="type-tag">{t}</span>)}
+    </div>
+  );
+}
+
+function Field({ label, value }) {
+  return (
+    <div className="user-field">
+      <div className="user-field-label">{label}</div>
+      <div className="user-field-value">{value}</div>
+    </div>
+  );
+}
+
+// ─── Confirm Modal ────────────────────────────────────────────────────────────
+function ConfirmModal({ title, message, confirmLabel, danger, onConfirm, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">{title}</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <p style={{ fontSize: "0.9rem", color: "var(--text-light)", marginBottom: 18 }}>{message}</p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
+          <button className={`btn btn-sm ${danger ? "btn-danger" : "btn-primary"}`} onClick={onConfirm}>
+            {confirmLabel || "Confirm"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit Violation Modal ─────────────────────────────────────────────────────
+function EditModal({ violation, types, onClose, onSaved, toast }) {
   const [form, setForm] = useState({
     motorist_name: violation.motorist_name || "",
     violation_type: violation.violation_type || "",
@@ -42,18 +128,19 @@ function EditModal({ violation, types, onClose, onSaved }) {
     enforcer_name: violation.enforcer_name || "",
   });
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
 
-  const handleSubmit = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    setError("");
+    setErr("");
     try {
       await updateViolation(violation.id, form);
+      toast.success("Violation updated.");
       onSaved();
       onClose();
-    } catch (err) {
-      setError(err.message || "Failed to save changes");
+    } catch (e2) {
+      setErr(e2.message || "Failed to save changes.");
     } finally {
       setSaving(false);
     }
@@ -63,97 +150,51 @@ function EditModal({ violation, types, onClose, onSaved }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">✏️ Edit Violation</div>
-          <button className="modal-close" onClick={onClose}>
-            ×
-          </button>
+          <div className="modal-title">Edit Violation</div>
+          <button className="modal-close" onClick={onClose}>×</button>
         </div>
-        <div style={{ fontSize: "0.75rem", color: "#999", marginBottom: 16 }}>
-          {getTCT(violation)}
+        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 16 }}>
+          {violation.ticket_no}
         </div>
-
-        {error && <div className="alert alert-error">⚠️ {error}</div>}
-
-        <form onSubmit={handleSubmit}>
+        {err && <div className="alert alert-error">{err}</div>}
+        <form onSubmit={submit}>
           <div className="form-group">
             <label className="form-label">Motorist Name</label>
-            <input
-              className="form-input"
-              value={form.motorist_name}
-              onChange={(e) =>
-                setForm({ ...form, motorist_name: e.target.value })
-              }
-              required
-            />
+            <input className="form-input" value={form.motorist_name}
+              onChange={(e) => setForm({ ...form, motorist_name: e.target.value })} required />
           </div>
-
           <div className="form-group">
             <label className="form-label">Violation Type</label>
-            <select
-              className="form-select"
-              value={form.violation_type}
-              onChange={(e) =>
-                setForm({ ...form, violation_type: e.target.value })
-              }
-            >
+            <select className="form-select" value={form.violation_type}
+              onChange={(e) => setForm({ ...form, violation_type: e.target.value })}>
               <option value="">— Select —</option>
-              {types.map((t) => (
-                <option key={t.id} value={t.name}>
-                  {t.name}
-                </option>
-              ))}
-              {/* Keep current value even if not in list */}
+              {types.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
               {form.violation_type &&
-                !types.find(
-                  (t) => t.name === form.violation_type.split(",")[0].trim(),
-                ) && (
-                  <option value={form.violation_type}>
-                    {form.violation_type}
-                  </option>
-                )}
+                !types.find((t) => t.name === form.violation_type.split(",")[0].trim()) && (
+                <option value={form.violation_type}>{form.violation_type}</option>
+              )}
             </select>
           </div>
-
           <div className="form-group">
             <label className="form-label">Notes</label>
-            <textarea
-              className="form-textarea"
-              value={form.notes}
-              onChange={(e) => setForm({ ...form, notes: e.target.value })}
-            />
+            <textarea className="form-textarea" value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           </div>
-
           <div className="form-group">
             <label className="form-label">Status</label>
-            <select
-              className="form-select"
-              value={form.status}
-              onChange={(e) => setForm({ ...form, status: e.target.value })}
-            >
-              <option value="pending">Pending</option>
-              <option value="resolved">Resolved</option>
-              <option value="dismissed">Dismissed</option>
+            <select className="form-select" value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}>
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </select>
           </div>
-
           <div className="form-group">
             <label className="form-label">Enforcer Name</label>
-            <input
-              className="form-input"
-              value={form.enforcer_name}
-              onChange={(e) =>
-                setForm({ ...form, enforcer_name: e.target.value })
-              }
-            />
+            <input className="form-input" value={form.enforcer_name}
+              onChange={(e) => setForm({ ...form, enforcer_name: e.target.value })} />
           </div>
-
-          <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-            <button className="btn btn-primary" type="submit" disabled={saving}>
-              {saving ? "Saving..." : "💾 Save Changes"}
-            </button>
-            <button className="btn btn-outline" type="button" onClick={onClose}>
-              Cancel
-            </button>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary btn-sm" disabled={saving}>{saving ? "Saving…" : "Save Changes"}</button>
           </div>
         </form>
       </div>
@@ -161,23 +202,24 @@ function EditModal({ violation, types, onClose, onSaved }) {
   );
 }
 
-// ─── Add Violation Type Modal ─────────────────────────────────────────
-function AddTypeModal({ onClose, onAdded }) {
+// ─── Add Violation Type Modal ─────────────────────────────────────────────────
+function AddTypeModal({ onClose, onAdded, toast }) {
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [err, setErr] = useState("");
 
-  const handleSubmit = async (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     if (!name.trim()) return;
     setSaving(true);
-    setError("");
+    setErr("");
     try {
       await addViolationType(name.trim());
+      toast.success("Violation type added.");
       onAdded();
       onClose();
-    } catch (err) {
-      setError(err.message || "Failed to add type");
+    } catch (e2) {
+      setErr(e2.message || "Failed to add type.");
     } finally {
       setSaving(false);
     }
@@ -185,40 +227,22 @@ function AddTypeModal({ onClose, onAdded }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div
-        className="modal"
-        style={{ maxWidth: 360 }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">➕ Add Violation Type</div>
-          <button className="modal-close" onClick={onClose}>
-            ×
-          </button>
+          <div className="modal-title">Add Violation Type</div>
+          <button className="modal-close" onClick={onClose}>×</button>
         </div>
-        {error && <div className="alert alert-error">⚠️ {error}</div>}
-        <form onSubmit={handleSubmit}>
+        {err && <div className="alert alert-error">{err}</div>}
+        <form onSubmit={submit}>
           <div className="form-group">
             <label className="form-label">Violation Type Name</label>
-            <input
-              className="form-input"
-              placeholder="e.g. Illegal U-Turn"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-              required
-            />
+            <input className="form-input" placeholder="e.g. Illegal U-Turn" value={name}
+              onChange={(e) => setName(e.target.value)} autoFocus required />
           </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button
-              className="btn btn-primary"
-              type="submit"
-              disabled={saving || !name.trim()}
-            >
-              {saving ? "Adding..." : "Add Type"}
-            </button>
-            <button className="btn btn-outline" type="button" onClick={onClose}>
-              Cancel
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary btn-sm" disabled={saving || !name.trim()}>
+              {saving ? "Adding…" : "Add Type"}
             </button>
           </div>
         </form>
@@ -227,256 +251,565 @@ function AddTypeModal({ onClose, onAdded }) {
   );
 }
 
-// ─── Main ViolationsTable ─────────────────────────────────────────────
+// ─── Violation Details Panel ──────────────────────────────────────────────────
+function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
+  const overdue = isOverdue(v);
+  const hasLocation = v.latitude && v.longitude;
+  const hasPayment = v.receipt_no || v.amount_paid;
+
+  return (
+    <>
+      <div className="panel-overlay" onClick={onClose} />
+      <aside className="user-panel">
+        <div className="user-panel-header">
+          <div className="user-panel-title">Violation Details</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="user-panel-body">
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 14 }}>
+            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: "var(--text)" }}>
+              {v.ticket_no}
+            </div>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+              <StatusBadge violation={v} />
+              {overdue && v.status === "pending" && (
+                <span style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                  ({daysSince(v.date_issued)}d old)
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="user-panel-section-title">Violation</div>
+          <div className="user-panel-grid">
+            <Field label="Type" value={<TypeTags value={v.violation_type} />} />
+            <Field label="Date Issued" value={formatDateTime(v.date_issued)} />
+            <Field label="Notes" value={v.notes || "—"} />
+            <Field label="Location" value={hasLocation
+              ? `${parseFloat(v.latitude).toFixed(5)}, ${parseFloat(v.longitude).toFixed(5)}`
+              : "—"} />
+          </div>
+
+          <div className="user-panel-section-title">Motorist</div>
+          <div className="user-panel-grid">
+            <Field label="Name" value={v.motorist_name} />
+            <Field label="Motorist ID" value={v.motorist_id
+              ? <code style={{ fontSize: "0.7rem" }}>{v.motorist_id.slice(0, 8)}…</code>
+              : "Unregistered"} />
+          </div>
+
+          <div className="user-panel-section-title">Issued By</div>
+          <div className="user-panel-grid">
+            <Field label="Enforcer" value={v.enforcer_name} />
+            <Field label="Enforcer ID" value={v.enforcer_id
+              ? <code style={{ fontSize: "0.7rem" }}>{v.enforcer_id.slice(0, 8)}…</code>
+              : "—"} />
+          </div>
+
+          <div className="user-panel-section-title">Payment</div>
+          {hasPayment ? (
+            <div className="user-panel-grid">
+              <Field label="Receipt #" value={v.receipt_no || "—"} />
+              <Field label="Amount Paid" value={v.amount_paid ? `₱${Number(v.amount_paid).toFixed(2)}` : "—"} />
+              <Field label="Paid At" value={formatDateTime(v.paid_at)} />
+            </div>
+          ) : (
+            <div className="empty-state" style={{ padding: "12px 0" }}>
+              <div className="empty-state-text">No payment recorded.</div>
+            </div>
+          )}
+
+          <div className="user-panel-actions">
+            <button className="btn btn-outline btn-sm" onClick={() => onAction("edit", v)}>Edit</button>
+            {v.status !== "paid" && (
+              <button className="btn btn-outline btn-sm" onClick={() => onAction("mark-paid", v)}>Mark Paid</button>
+            )}
+            {v.status !== "resolved" && (
+              <button className="btn btn-outline btn-sm" onClick={() => onAction("mark-resolved", v)}>Mark Resolved</button>
+            )}
+            {v.status !== "pending" && (
+              <button className="btn btn-outline btn-sm" onClick={() => onAction("reopen", v)}>Reopen</button>
+            )}
+          </div>
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// ─── Row Action Menu ──────────────────────────────────────────────────────────
+function RowMenu({ violation: v, isAdmin, onAction, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const click = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const key = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", click);
+    document.addEventListener("keydown", key);
+    return () => {
+      document.removeEventListener("mousedown", click);
+      document.removeEventListener("keydown", key);
+    };
+  }, [onClose]);
+
+  const item = (label, action, danger = false, disabled = false) => (
+    <button
+      key={action}
+      className={`row-menu-item${danger ? " danger" : ""}`}
+      disabled={disabled}
+      onClick={() => { if (!disabled) onAction(action, v); onClose(); }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="row-menu" ref={ref}>
+      {item("View Details", "view")}
+      {item("Edit Violation", "edit")}
+      <div className="row-menu-divider" />
+      {v.status !== "paid"      && item("Mark as Paid",     "mark-paid")}
+      {v.status !== "resolved"  && item("Mark as Resolved", "mark-resolved")}
+      {v.status !== "dismissed" && item("Mark as Dismissed", "mark-dismissed")}
+      {v.status !== "pending"   && item("Reopen",            "reopen")}
+      <div className="row-menu-divider" />
+      {item("Delete", "delete", true, !isAdmin)}
+    </div>
+  );
+}
+
+// ─── CSV Export ───────────────────────────────────────────────────────────────
+function exportCsv(rows) {
+  const headers = ["Ticket #", "Motorist", "Violation Type", "Enforcer", "Date Issued", "Status", "Notes"];
+  const escape = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lines = [
+    headers.join(","),
+    ...rows.map((v) => [
+      v.ticket_no, v.motorist_name, v.violation_type, v.enforcer_name,
+      v.date_issued, v.status, v.notes,
+    ].map(escape).join(",")),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `violations-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function ViolationsTable({ violations, onRefresh }) {
+  const { user: actor } = useAuth();
+  const isAdmin = actor?.role === "admin";
+  const toast = useToasts();
+
+  const [violationTypes, setViolationTypes] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // Tab — persisted to localStorage
+  const [activeTab, setActiveTab] = useState(
+    () => localStorage.getItem("sjtmo_vt_tab") || "all"
+  );
+
+  // Filters
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterType, setFilterType] = useState("all");
-  const [updating, setUpdating] = useState(null);
-  const [message, setMessage] = useState("");
+  const [filterEnforcer, setFilterEnforcer] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Sort
+  const [sortKey, setSortKey] = useState("date_issued");
+  const [sortDir, setSortDir] = useState("desc");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Selection
+  const [selected, setSelected] = useState(new Set());
+
+  // Modals / panel
   const [editViolation, setEditViolation] = useState(null);
   const [showAddType, setShowAddType] = useState(false);
-  const [violationTypes, setViolationTypes] = useState([]);
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
+  const [detailsId, setDetailsId] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const [confirmAction, setConfirmAction] = useState(null);
 
-  // Load violation types for edit modal dropdown
+  // ── Load violation types for edit dropdown ────────────────────────────────
   useEffect(() => {
-    getViolationTypes()
-      .then(setViolationTypes)
-      .catch(() => {});
+    getViolationTypes().then(setViolationTypes).catch(() => {});
   }, []);
 
-  const showMsg = (msg) => {
-    setMessage(msg);
-    setTimeout(() => setMessage(""), 3000);
+  // ── Debounce search ───────────────────────────────────────────────────────
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim().toLowerCase()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // ── Tab change: reset filters + page ──────────────────────────────────────
+  const switchTab = (key) => {
+    setActiveTab(key);
+    localStorage.setItem("sjtmo_vt_tab", key);
+    setSearch(""); setDebouncedSearch("");
+    setFilterStatus("all"); setFilterType("all"); setFilterEnforcer("all");
+    setDateFrom(""); setDateTo("");
+    setPage(1); setSelected(new Set());
+    setSortKey("date_issued"); setSortDir("desc");
   };
 
-  const types = [...new Set(violations.map((v) => v.violation_type))];
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [debouncedSearch, filterStatus, filterType, filterEnforcer, dateFrom, dateTo, pageSize]);
 
-  const filtered = violations.filter((v) => {
-    const matchSearch =
-      !search ||
-      v.motorist_name.toLowerCase().includes(search.toLowerCase()) ||
-      v.violation_type.toLowerCase().includes(search.toLowerCase()) ||
-      v.enforcer_name.toLowerCase().includes(search.toLowerCase()) ||
-      getTCT(v).toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === "all" || v.status === filterStatus;
-    const matchType = filterType === "all" || v.violation_type === filterType;
-    return matchSearch && matchStatus && matchType;
-  });
+  // ── Tab counts (for badges) ───────────────────────────────────────────────
+  const tabCounts = useMemo(() => {
+    const c = { all: violations.length };
+    TABS.slice(1).forEach((t) => {
+      c[t.key] = violations.filter((v) => matchesTab(v, t.key)).length;
+    });
+    return c;
+  }, [violations]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // ── Summary counts (above tabs) ───────────────────────────────────────────
+  const counts = useMemo(() => {
+    let total = 0, pending = 0, paid = 0, overdue = 0;
+    violations.forEach((v) => {
+      total++;
+      if (v.status === "pending") pending++;
+      if (v.status === "paid") paid++;
+      if (isOverdue(v)) overdue++;
+    });
+    return { total, pending, paid, overdue };
+  }, [violations]);
+
+  // ── Distinct enforcers + types for filter dropdowns ───────────────────────
+  const enforcers = useMemo(() => {
+    return [...new Set(violations.map((v) => v.enforcer_name).filter(Boolean))].sort();
+  }, [violations]);
+
+  const typeOptions = useMemo(() => {
+    const set = new Set();
+    violations.forEach((v) => {
+      (v.violation_type || "").split(",").map((t) => t.trim()).filter(Boolean).forEach((t) => set.add(t));
+    });
+    return [...set].sort();
+  }, [violations]);
+
+  // ── Filtering + sorting ───────────────────────────────────────────────────
+  const filtered = useMemo(() => {
+    let list = violations.filter((v) => matchesTab(v, activeTab));
+
+    if (debouncedSearch) {
+      list = list.filter((v) =>
+        (v.ticket_no || "").toLowerCase().includes(debouncedSearch) ||
+        (v.motorist_name || "").toLowerCase().includes(debouncedSearch) ||
+        (v.enforcer_name || "").toLowerCase().includes(debouncedSearch) ||
+        (v.violation_type || "").toLowerCase().includes(debouncedSearch),
+      );
+    }
+    if (filterStatus !== "all") {
+      list = list.filter((v) => (filterStatus === "overdue" ? isOverdue(v) : v.status === filterStatus));
+    }
+    if (filterType !== "all") {
+      list = list.filter((v) =>
+        (v.violation_type || "").split(",").map((t) => t.trim()).includes(filterType),
+      );
+    }
+    if (filterEnforcer !== "all") list = list.filter((v) => v.enforcer_name === filterEnforcer);
+    if (dateFrom) {
+      const from = new Date(dateFrom).getTime();
+      list = list.filter((v) => new Date(v.date_issued).getTime() >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo).getTime() + 86400000;
+      list = list.filter((v) => new Date(v.date_issued).getTime() < to);
+    }
+
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...list].sort((a, b) => {
+      let va = a[sortKey] ?? "";
+      let vb = b[sortKey] ?? "";
+      if (sortKey === "date_issued") { va = new Date(a.date_issued).getTime(); vb = new Date(b.date_issued).getTime(); }
+      if (va < vb) return -1 * dir;
+      if (va > vb) return  1 * dir;
+      return 0;
+    });
+  }, [violations, activeTab, debouncedSearch, filterStatus, filterType, filterEnforcer, dateFrom, dateTo, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const paginated = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  const resetPage = () => setPage(1);
+  // ── Selection ─────────────────────────────────────────────────────────────
+  const allOnPage = paginated.length > 0 && paginated.every((v) => selected.has(v.id));
+  const toggleOne = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected((s) => {
+    const n = new Set(s);
+    if (allOnPage) paginated.forEach((v) => n.delete(v.id));
+    else paginated.forEach((v) => n.add(v.id));
+    return n;
+  });
+  const clearSel = () => setSelected(new Set());
 
-  const handleStatusChange = async (id, status) => {
-    setUpdating(id);
-    try {
-      await updateViolationStatus(id, status);
-      showMsg(`Status updated to "${status}"`);
-      onRefresh();
-    } catch (err) {
-      showMsg("Failed to update status");
-    } finally {
-      setUpdating(null);
+  // ── Action dispatch ───────────────────────────────────────────────────────
+  const performAction = async (action, target) => {
+    switch (action) {
+      case "view": return setDetailsId(target.id);
+      case "edit": return setEditViolation(target);
+      case "mark-paid":
+      case "mark-resolved":
+      case "mark-dismissed":
+      case "reopen": {
+        const map = {
+          "mark-paid": "paid", "mark-resolved": "resolved",
+          "mark-dismissed": "dismissed", "reopen": "pending",
+        };
+        const newStatus = map[action];
+        const label = action === "reopen" ? "Reopen" : `Mark as ${STATUS_LABEL[newStatus]}`;
+        return setConfirmAction({
+          title: `${label}?`,
+          message: `Set ${target.ticket_no} status to "${STATUS_LABEL[newStatus]}"?`,
+          confirmLabel: label,
+          run: async () => {
+            await updateViolationStatus(target.id, newStatus);
+            toast.success(`${target.ticket_no} → ${STATUS_LABEL[newStatus]}.`);
+            onRefresh();
+          },
+        });
+      }
+      case "delete": return setConfirmAction({
+        title: "Delete violation?",
+        message: `Permanently delete ${target.ticket_no}? This cannot be undone.`,
+        confirmLabel: "Delete",
+        danger: true,
+        run: async () => {
+          await deleteViolation(target.id);
+          toast.success(`${target.ticket_no} deleted.`);
+          onRefresh();
+        },
+      });
+      default: return;
     }
   };
 
+  // ── Bulk actions ──────────────────────────────────────────────────────────
+  const bulkUpdateStatus = (label, newStatus) => {
+    const targets = violations.filter((v) => selected.has(v.id));
+    if (!targets.length) return;
+    setConfirmAction({
+      title: `${label} ${targets.length} violation${targets.length > 1 ? "s" : ""}?`,
+      message: `This will set status to "${STATUS_LABEL[newStatus]}" for ${targets.length} record${targets.length > 1 ? "s" : ""}.`,
+      confirmLabel: label,
+      run: async () => {
+        const res = await Promise.allSettled(targets.map((v) => updateViolationStatus(v.id, newStatus)));
+        const ok = res.filter((r) => r.status === "fulfilled").length;
+        if (ok) toast.success(`${ok} updated.`);
+        if (ok < targets.length) toast.error(`${targets.length - ok} failed.`);
+        clearSel(); onRefresh();
+      },
+    });
+  };
+
+  const bulkDelete = () => {
+    const targets = violations.filter((v) => selected.has(v.id));
+    if (!targets.length) return;
+    setConfirmAction({
+      title: `Delete ${targets.length} violation${targets.length > 1 ? "s" : ""}?`,
+      message: "This cannot be undone.",
+      confirmLabel: "Delete",
+      danger: true,
+      run: async () => {
+        const res = await Promise.allSettled(targets.map((v) => deleteViolation(v.id)));
+        const ok = res.filter((r) => r.status === "fulfilled").length;
+        if (ok) toast.success(`${ok} deleted.`);
+        if (ok < targets.length) toast.error(`${targets.length - ok} failed.`);
+        clearSel(); onRefresh();
+      },
+    });
+  };
+
+  const bulkExport = () => {
+    const targets = violations.filter((v) => selected.has(v.id));
+    if (!targets.length) return;
+    exportCsv(targets);
+    toast.success(`Exported ${targets.length} violation${targets.length > 1 ? "s" : ""}.`);
+  };
+
+  // ── Sort helper ───────────────────────────────────────────────────────────
+  const sortBy = (key) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+  const si = (key) => sortKey === key ? (sortDir === "asc" ? " ▲" : " ▼") : "";
+
+  // ── Reset filters ─────────────────────────────────────────────────────────
+  const resetFilters = () => {
+    setSearch(""); setFilterStatus("all"); setFilterType("all"); setFilterEnforcer("all");
+    setDateFrom(""); setDateTo("");
+  };
+
   const handleTypeAdded = () => {
-    getViolationTypes()
-      .then(setViolationTypes)
-      .catch(() => {});
+    getViolationTypes().then(setViolationTypes).catch(() => {});
     onRefresh();
-    showMsg("Violation type added successfully!");
+  };
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    try { await onRefresh(); } finally { setLoading(false); }
   };
 
   return (
     <div>
-      {message && <div className="alert alert-success">✅ {message}</div>}
+      <ToastStack toasts={toast.toasts} />
 
-      {/* Filters + Add Type */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            flexWrap: "wrap",
-            alignItems: "flex-end",
-          }}
-        >
-          <div style={{ flex: "1 1 200px" }}>
-            <label className="form-label">Search</label>
-            <input
-              className="form-input"
-              placeholder="Motorist, TCT, type, enforcer..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); resetPage(); }}
-            />
-          </div>
-          <div style={{ flex: "0 1 160px" }}>
-            <label className="form-label">Status</label>
-            <select
-              className="form-select"
-              value={filterStatus}
-              onChange={(e) => { setFilterStatus(e.target.value); resetPage(); }}
-            >
-              <option value="all">All Statuses</option>
-              <option value="pending">Pending</option>
-              <option value="resolved">Resolved</option>
-              <option value="dismissed">Dismissed</option>
-            </select>
-          </div>
-          <div style={{ flex: "0 1 180px" }}>
-            <label className="form-label">Type</label>
-            <select
-              className="form-select"
-              value={filterType}
-              onChange={(e) => { setFilterType(e.target.value); resetPage(); }}
-            >
-              <option value="all">All Types</option>
-              {types.map((t) => (
-                <option key={t} value={t}>
-                  {t}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-outline btn-sm" onClick={onRefresh}>
-              🔄 Refresh
-            </button>
-            <button
-              className="btn btn-primary btn-sm"
-              onClick={() => setShowAddType(true)}
-            >
-              ➕ Add Violation Type
-            </button>
-          </div>
+      {/* ── Header ── */}
+      <div className="um-page-header">
+        <div>
+          <h2 className="um-page-title">Violations Management</h2>
+          <div className="um-page-subtitle">Manage tickets, payments, and case status.</div>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-outline btn-sm" onClick={handleRefresh}>Refresh</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowAddType(true)}>+ Add Violation Type</button>
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-title">
-          📋 All Violations
-          <span
-            style={{
-              background: "#eeeaff",
-              color: "#140c7e",
-              padding: "2px 8px",
-              borderRadius: 12,
-              fontSize: "0.75rem",
-              marginLeft: 8,
-            }}
+      {/* ── Summary cards ── */}
+      <div className="um-summary-grid">
+        <SummaryCard label="Total Violations" value={counts.total}    accent="blue"   />
+        <SummaryCard label="Pending"          value={counts.pending}  accent="orange" />
+        <SummaryCard label="Paid"             value={counts.paid}     accent="green"  />
+        <SummaryCard label="Overdue"          value={counts.overdue}  accent="purple" />
+      </div>
+
+      {/* ── Status tabs ── */}
+      <div className="um-tab-bar">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            className={`um-tab${activeTab === t.key ? " active" : ""}`}
+            onClick={() => switchTab(t.key)}
           >
-            {filtered.length}
-          </span>
+            {t.label}
+            <span className={`um-tab-count${activeTab === t.key ? " active" : ""}`}>
+              {tabCounts[t.key] ?? 0}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Filters ── */}
+      <div className="card um-filters">
+        <div className="um-filter-row">
+          <div className="um-filter-search">
+            <input className="form-input" placeholder="Search ticket #, motorist, type, enforcer…"
+              value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+          <select className="form-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="all">All Statuses</option>
+            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+          </select>
+          <select className="form-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
+            <option value="all">All Types</option>
+            {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select className="form-select" value={filterEnforcer} onChange={(e) => setFilterEnforcer(e.target.value)}>
+            <option value="all">All Enforcers</option>
+            {enforcers.map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <input className="form-input" type="date" value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)} title="Date from" />
+          <input className="form-input" type="date" value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)} title="Date to" />
+          <button className="btn btn-outline btn-sm" onClick={resetFilters}>Reset</button>
         </div>
-        <div className="table-wrapper">
-          {paginated.length === 0 ? (
+      </div>
+
+      {/* ── Bulk bar ── */}
+      {selected.size > 0 && (
+        <div className="bulk-bar">
+          <div>
+            <strong>{selected.size}</strong> selected
+            <button className="bulk-link" onClick={clearSel}>Clear</button>
+          </div>
+          <div className="bulk-actions">
+            <button className="btn btn-outline btn-sm" onClick={() => bulkUpdateStatus("Mark Paid",      "paid")}>Mark Paid</button>
+            <button className="btn btn-outline btn-sm" onClick={() => bulkUpdateStatus("Mark Resolved",  "resolved")}>Mark Resolved</button>
+            <button className="btn btn-outline btn-sm" onClick={() => bulkUpdateStatus("Mark Dismissed", "dismissed")}>Mark Dismissed</button>
+            <button className="btn btn-outline btn-sm" onClick={bulkExport}>Export CSV</button>
+            {isAdmin && <button className="btn btn-danger btn-sm" onClick={bulkDelete}>Delete</button>}
+          </div>
+        </div>
+      )}
+
+      {/* ── Table ── */}
+      <div className="card um-table-card">
+        <div className="table-wrapper um-table-wrapper">
+          {loading ? (
+            <div style={{ padding: "12px 4px" }}><SkeletonRows count={6} /></div>
+          ) : filtered.length === 0 ? (
             <div className="empty-state">
               <div className="empty-state-icon">🔍</div>
-              <div className="empty-state-text">
-                No violations match your filters
-              </div>
+              <div className="empty-state-text">No violations found</div>
             </div>
           ) : (
-            <table>
+            <table className="um-table">
               <thead>
                 <tr>
-                  <th>TCT #</th>
-                  <th>Motorist</th>
+                  <th style={{ width: 36 }}>
+                    <input type="checkbox" checked={allOnPage} onChange={toggleAll} aria-label="Select all" />
+                  </th>
+                  <th className="sortable" onClick={() => sortBy("ticket_no")}>Ticket #{si("ticket_no")}</th>
+                  <th className="sortable" onClick={() => sortBy("motorist_name")}>Motorist{si("motorist_name")}</th>
                   <th>Violation Type</th>
-                  <th>Enforcer</th>
-                  <th>Date</th>
-                  <th>Notes</th>
-                  <th>Status</th>
-                  <th>Actions</th>
+                  <th className="sortable" onClick={() => sortBy("enforcer_name")}>Enforcer{si("enforcer_name")}</th>
+                  <th className="sortable" onClick={() => sortBy("date_issued")}>Date{si("date_issued")}</th>
+                  <th className="sortable" onClick={() => sortBy("status")}>Status{si("status")}</th>
+                  <th style={{ width: 50 }} />
                 </tr>
               </thead>
               <tbody>
                 {paginated.map((v) => (
-                  <tr key={v.id}>
-                    <td>
-                      <span className="tct-code">{getTCT(v)}</span>
+                  <tr
+                    key={v.id}
+                    className={selected.has(v.id) ? "row-selected" : ""}
+                    onClick={(e) => { if (!e.target.closest(".um-row-stop")) setDetailsId(v.id); }}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <td className="um-row-stop" style={{ width: 36 }}>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(v.id)}
+                        onChange={() => toggleOne(v.id)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
                     </td>
+                    <td><span className="tct-code">{v.ticket_no}</span></td>
                     <td style={{ fontWeight: 600 }}>{v.motorist_name}</td>
-                    <td>
-                      <TypeTags value={v.violation_type} />
-                    </td>
+                    <td><TypeTags value={v.violation_type} /></td>
                     <td>{v.enforcer_name}</td>
-                    <td style={{ fontSize: "0.82rem", color: "#666" }}>
-                      {new Date(v.date_issued).toLocaleDateString()}
-                      <br />
-                      <span style={{ fontSize: "0.75rem" }}>
-                        {new Date(v.date_issued).toLocaleTimeString()}
-                      </span>
+                    <td style={{ fontSize: "0.82rem", color: "var(--text-light)" }}>
+                      {formatDate(v.date_issued)}
                     </td>
-                    <td
-                      style={{
-                        fontSize: "0.82rem",
-                        color: "#666",
-                        maxWidth: 140,
-                        wordBreak: "break-word",
-                      }}
-                    >
-                      {v.notes || "—"}
-                    </td>
-                    <td>
-                      <span className={`badge badge-${v.status}`}>
-                        {v.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div
-                        style={{ display: "flex", gap: 4, flexWrap: "wrap" }}
-                      >
-                        {/* Edit */}
-                        <button
-                          className="btn btn-outline btn-sm"
-                          title="Edit violation"
-                          onClick={() => setEditViolation(v)}
-                        >
-                          ✏️
-                        </button>
-                        {/* Status actions */}
-                        {v.status === "pending" && (
-                          <>
-                            <button
-                              className="btn btn-success btn-sm"
-                              disabled={updating === v.id}
-                              title="Resolve"
-                              onClick={() =>
-                                handleStatusChange(v.id, "resolved")
-                              }
-                            >
-                              ✓
-                            </button>
-                            <button
-                              className="btn btn-outline btn-sm"
-                              disabled={updating === v.id}
-                              title="Dismiss"
-                              onClick={() =>
-                                handleStatusChange(v.id, "dismissed")
-                              }
-                            >
-                              ✕
-                            </button>
-                          </>
-                        )}
-                        {v.status !== "pending" && (
-                          <button
-                            className="btn btn-outline btn-sm"
-                            disabled={updating === v.id}
-                            title="Reopen"
-                            onClick={() => handleStatusChange(v.id, "pending")}
-                          >
-                            ↺
-                          </button>
-                        )}
-                      </div>
+                    <td><StatusBadge violation={v} /></td>
+                    <td className="um-row-stop" style={{ width: 50, position: "relative" }}>
+                      <button
+                        className="row-menu-btn"
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === v.id ? null : v.id); }}
+                        aria-label="Actions"
+                      >⋮</button>
+                      {openMenuId === v.id && (
+                        <RowMenu
+                          violation={v}
+                          isAdmin={isAdmin}
+                          onAction={performAction}
+                          onClose={() => setOpenMenuId(null)}
+                        />
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -485,87 +818,73 @@ export default function ViolationsTable({ violations, onRefresh }) {
           )}
         </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 16, flexWrap: "wrap", gap: 8 }}>
-            <span style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
-              Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length}
-            </span>
-            <div style={{ display: "flex", gap: 4 }}>
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => setPage(1)}
-                disabled={safePage === 1}
-              >
-                «
-              </button>
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={safePage === 1}
-              >
-                ‹ Prev
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1)
-                .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
-                .reduce((acc, p, idx, arr) => {
-                  if (idx > 0 && p - arr[idx - 1] > 1) acc.push("...");
-                  acc.push(p);
-                  return acc;
-                }, [])
-                .map((p, i) =>
-                  p === "..." ? (
-                    <span key={`ellipsis-${i}`} style={{ padding: "6px 4px", fontSize: "0.82rem", color: "var(--text-muted)" }}>…</span>
-                  ) : (
-                    <button
-                      key={p}
-                      className={`btn btn-sm ${safePage === p ? "btn-primary" : "btn-outline"}`}
-                      onClick={() => setPage(p)}
-                      style={{ minWidth: 34 }}
-                    >
-                      {p}
-                    </button>
-                  )
-                )}
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={safePage === totalPages}
-              >
-                Next ›
-              </button>
-              <button
-                className="btn btn-outline btn-sm"
-                onClick={() => setPage(totalPages)}
-                disabled={safePage === totalPages}
-              >
-                »
-              </button>
+        {/* ── Pagination ── */}
+        {filtered.length > 0 && (
+          <div className="um-pagination">
+            <div className="um-pagination-info">
+              Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, filtered.length)} of {filtered.length}
+            </div>
+            <div className="um-pagination-controls">
+              <select className="form-select um-rows-per-page" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
+                {[10, 25, 50, 100].map((n) => <option key={n} value={n}>{n} / page</option>)}
+              </select>
+              <button className="btn btn-outline btn-sm" disabled={safePage === 1}          onClick={() => setPage(1)}>«</button>
+              <button className="btn btn-outline btn-sm" disabled={safePage === 1}          onClick={() => setPage((p) => p - 1)}>‹</button>
+              <span className="um-page-indicator">Page {safePage} of {totalPages}</span>
+              <button className="btn btn-outline btn-sm" disabled={safePage === totalPages} onClick={() => setPage((p) => p + 1)}>›</button>
+              <button className="btn btn-outline btn-sm" disabled={safePage === totalPages} onClick={() => setPage(totalPages)}>»</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Edit Modal */}
+      {/* ── Modals ── */}
       {editViolation && (
         <EditModal
           violation={editViolation}
           types={violationTypes}
           onClose={() => setEditViolation(null)}
-          onSaved={() => {
-            onRefresh();
-            showMsg("Violation updated!");
+          onSaved={onRefresh}
+          toast={toast}
+        />
+      )}
+      {showAddType && (
+        <AddTypeModal onClose={() => setShowAddType(false)} onAdded={handleTypeAdded} toast={toast} />
+      )}
+      {confirmAction && (
+        <ConfirmModal
+          title={confirmAction.title}
+          message={confirmAction.message}
+          confirmLabel={confirmAction.confirmLabel}
+          danger={confirmAction.danger}
+          onClose={() => setConfirmAction(null)}
+          onConfirm={async () => {
+            const a = confirmAction;
+            setConfirmAction(null);
+            try { await a.run(); } catch (e) { toast.error(e.message || "Action failed."); }
           }}
         />
       )}
+      {detailsId && (() => {
+        const v = violations.find((x) => x.id === detailsId);
+        if (!v) return null;
+        return (
+          <ViolationDetailsPanel
+            violation={v}
+            onClose={() => setDetailsId(null)}
+            onAction={(action, vv) => { setDetailsId(null); performAction(action, vv); }}
+          />
+        );
+      })()}
+    </div>
+  );
+}
 
-      {/* Add Violation Type Modal */}
-      {showAddType && (
-        <AddTypeModal
-          onClose={() => setShowAddType(false)}
-          onAdded={handleTypeAdded}
-        />
-      )}
+function SummaryCard({ label, value, accent }) {
+  return (
+    <div className={`um-summary-card accent-${accent}`}>
+      <div className="um-summary-value">{value}</div>
+      <div className="um-summary-label">{label}</div>
     </div>
   );
 }

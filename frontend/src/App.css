@@ -924,6 +924,10 @@ tr:hover td {
   background: #fff3e0;
   color: #b45309;
 }
+.badge-paid {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
 .badge-resolved {
   background: #e8f5e9;
   color: #2e7d32;
@@ -931,6 +935,14 @@ tr:hover td {
 .badge-dismissed {
   background: #f3f4f6;
   color: #6b7280;
+}
+.badge-disputed {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+.badge-overdue {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 .badge-admin {
   background: #ede9fe;
@@ -1701,7 +1713,10 @@ tr:hover td {
 }
 
 [data-theme="dark"] .badge-pending   { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+[data-theme="dark"] .badge-paid      { background: rgba(16, 185, 129, 0.18); color: #34d399; }
 [data-theme="dark"] .badge-resolved  { background: rgba(16, 185, 129, 0.18); color: #34d399; }
+[data-theme="dark"] .badge-disputed  { background: rgba(139, 92, 246, 0.18); color: #c4b5fd; }
+[data-theme="dark"] .badge-overdue   { background: rgba(239, 68, 68, 0.18);  color: #fca5a5; }
 [data-theme="dark"] .badge-dismissed { background: rgba(148, 163, 184, 0.18); color: #cbd5e1; }
 [data-theme="dark"] .badge-admin     { background: rgba(139, 92, 246, 0.18); color: #c4b5fd; }
 [data-theme="dark"] .badge-enforcer  { background: rgba(249, 115, 22, 0.18); color: #fdba74; }
