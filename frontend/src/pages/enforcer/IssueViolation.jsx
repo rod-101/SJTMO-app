@@ -21,12 +21,17 @@ L.Icon.Default.mergeOptions({
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const SJ_CENTER = { lat: 12.3547, lng: 121.0694 };
-const SJ_BOUNDS = { minLat: 12.28, maxLat: 12.43, minLng: 120.99, maxLng: 121.15 };
+const SJ_BOUNDS = {
+  minLat: 12.28,
+  maxLat: 12.43,
+  minLng: 120.99,
+  maxLng: 121.15,
+};
 
 const STEPS = [
-  { key: "motorist",  label: "Motorist",   icon: "👤" },
-  { key: "violation", label: "Violation",  icon: "⚠️" },
-  { key: "review",    label: "Review",     icon: "✅" },
+  { key: "motorist", label: "Motorist", icon: "👤" },
+  { key: "violation", label: "Violation", icon: "⚠️" },
+  { key: "review", label: "Review", icon: "✅" },
 ];
 
 const peso = (n) =>
@@ -35,8 +40,10 @@ const peso = (n) =>
     : "—";
 
 const inSJBounds = (lat, lng) =>
-  lat >= SJ_BOUNDS.minLat && lat <= SJ_BOUNDS.maxLat &&
-  lng >= SJ_BOUNDS.minLng && lng <= SJ_BOUNDS.maxLng;
+  lat >= SJ_BOUNDS.minLat &&
+  lat <= SJ_BOUNDS.maxLat &&
+  lng >= SJ_BOUNDS.minLng &&
+  lng <= SJ_BOUNDS.maxLng;
 
 // ─── Stepper ──────────────────────────────────────────────────────────────────
 function Stepper({ current, onJump, canJump }) {
@@ -70,18 +77,23 @@ function Stepper({ current, onJump, canJump }) {
 
 // ─── Motorist Step ────────────────────────────────────────────────────────────
 function MotoristStep({
-  motoristMode, setMotoristMode,
-  query, setQuery,
+  motoristMode,
+  setMotoristMode,
+  query,
+  setQuery,
   suggestions,
-  selectedMotorist, setSelectedMotorist,
-  newMotorist, setNewMotorist,
+  selectedMotorist,
+  setSelectedMotorist,
+  newMotorist,
+  setNewMotorist,
 }) {
   const [showSuggest, setShowSuggest] = useState(false);
   const wrapRef = useRef(null);
 
   useEffect(() => {
     const onClick = (e) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowSuggest(false);
+      if (wrapRef.current && !wrapRef.current.contains(e.target))
+        setShowSuggest(false);
     };
     document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
@@ -90,7 +102,9 @@ function MotoristStep({
   return (
     <div className="iv-panel">
       <div className="iv-panel-title">Identify the motorist</div>
-      <div className="iv-panel-hint">Search the registry first — add a new motorist only if not found.</div>
+      <div className="iv-panel-hint">
+        Search the registry first — add a new motorist only if not found.
+      </div>
 
       <div className="iv-mode-toggle">
         <button
@@ -113,7 +127,7 @@ function MotoristStep({
         <div className="iv-search-wrap" ref={wrapRef}>
           <input
             className="form-input iv-input-lg"
-            placeholder="Search by name, plate, or ID…"
+            placeholder="Search by name, plate, or License no…"
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -127,7 +141,8 @@ function MotoristStep({
             <div className="iv-suggest">
               {suggestions.length === 0 ? (
                 <div className="iv-suggest-empty">
-                  No match. Switch to <button
+                  No match. Switch to{" "}
+                  <button
                     type="button"
                     className="iv-link-btn"
                     onClick={() => setMotoristMode("new")}
@@ -153,7 +168,9 @@ function MotoristStep({
                     <div className="iv-suggest-body">
                       <div className="iv-suggest-name">{m.name}</div>
                       <div className="iv-suggest-meta">
-                        {m.count ? `${m.count} prior violation${m.count === 1 ? "" : "s"}` : "On record"}
+                        {m.count
+                          ? `${m.count} prior violation${m.count === 1 ? "" : "s"}`
+                          : "On record"}
                       </div>
                     </div>
                     {selectedMotorist?.name === m.name && (
@@ -180,9 +197,14 @@ function MotoristStep({
               <button
                 type="button"
                 className="iv-clear-btn"
-                onClick={() => { setSelectedMotorist(null); setQuery(""); }}
+                onClick={() => {
+                  setSelectedMotorist(null);
+                  setQuery("");
+                }}
                 aria-label="Clear selection"
-              >×</button>
+              >
+                ×
+              </button>
             </div>
           )}
         </div>
@@ -194,7 +216,9 @@ function MotoristStep({
               className="form-input iv-input-lg"
               placeholder="Juan Dela Cruz"
               value={newMotorist.name}
-              onChange={(e) => setNewMotorist({ ...newMotorist, name: e.target.value })}
+              onChange={(e) =>
+                setNewMotorist({ ...newMotorist, name: e.target.value })
+              }
               autoFocus
               required
             />
@@ -205,20 +229,31 @@ function MotoristStep({
               className="form-input iv-input-lg"
               placeholder="ABC-1234"
               value={newMotorist.plate}
-              onChange={(e) => setNewMotorist({ ...newMotorist, plate: e.target.value.toUpperCase() })}
+              onChange={(e) =>
+                setNewMotorist({
+                  ...newMotorist,
+                  plate: e.target.value.toUpperCase(),
+                })
+              }
               autoCapitalize="characters"
             />
           </div>
           <div className="form-group">
-            <label className="form-label">License No. <span className="iv-optional">(optional)</span></label>
+            <label className="form-label">
+              License No. <span className="iv-optional">(optional)</span>
+            </label>
             <input
               className="form-input iv-input-lg"
               placeholder="N01-23-456789"
               value={newMotorist.license}
-              onChange={(e) => setNewMotorist({ ...newMotorist, license: e.target.value })}
+              onChange={(e) =>
+                setNewMotorist({ ...newMotorist, license: e.target.value })
+              }
             />
           </div>
-          <div className="iv-tip">Speed first — extra details can be added to the record later.</div>
+          <div className="iv-tip">
+            Speed first — extra details can be added to the record later.
+          </div>
         </div>
       )}
     </div>
@@ -226,7 +261,15 @@ function MotoristStep({
 }
 
 // ─── Violation Picker Modal ───────────────────────────────────────────────────
-function ViolationPickerModal({ types, typeQuery, setTypeQuery, selectedTypes, toggleType, totalFine, onClose }) {
+function ViolationPickerModal({
+  types,
+  typeQuery,
+  setTypeQuery,
+  selectedTypes,
+  toggleType,
+  totalFine,
+  onClose,
+}) {
   const filteredTypes = useMemo(() => {
     const q = typeQuery.trim().toLowerCase();
     if (!q) return types;
@@ -240,22 +283,38 @@ function ViolationPickerModal({ types, typeQuery, setTypeQuery, selectedTypes, t
 
   // Trap escape key
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   return (
     <div className="iv-modal-backdrop" onMouseDown={handleBackdrop}>
-      <div className="iv-modal" role="dialog" aria-modal="true" aria-label="Select violation types">
+      <div
+        className="iv-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Select violation types"
+      >
         <div className="iv-modal-header">
           <div className="iv-modal-title">
             Select Violations
             {selectedTypes.length > 0 && (
-              <span className="iv-count-pill">{selectedTypes.length} selected</span>
+              <span className="iv-count-pill">
+                {selectedTypes.length} selected
+              </span>
             )}
           </div>
-          <button type="button" className="iv-modal-close" onClick={onClose} aria-label="Close">×</button>
+          <button
+            type="button"
+            className="iv-modal-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
         </div>
 
         <div className="iv-modal-search">
@@ -282,8 +341,13 @@ function ViolationPickerModal({ types, typeQuery, setTypeQuery, selectedTypes, t
                     className={`iv-type-card${sel ? " selected" : ""}`}
                     onClick={() => toggleType(t)}
                   >
-                    <span className="iv-type-name">{sel ? "✓ " : ""}{t.name}</span>
-                    <span className="iv-type-fine">{peso(Number(t.fine) || 0)}</span>
+                    <span className="iv-type-name">
+                      {sel ? "✓ " : ""}
+                      {t.name}
+                    </span>
+                    <span className="iv-type-fine">
+                      {peso(Number(t.fine) || 0)}
+                    </span>
                   </button>
                 );
               })}
@@ -312,19 +376,33 @@ function ViolationPickerModal({ types, typeQuery, setTypeQuery, selectedTypes, t
 
 // ─── Violation Step ───────────────────────────────────────────────────────────
 function ViolationStep({
-  types, typeQuery, setTypeQuery,
-  selectedTypes, toggleType,
+  types,
+  typeQuery,
+  setTypeQuery,
+  selectedTypes,
+  toggleType,
   totalFine,
-  notes, setNotes,
-  gps, captureGPS, manualLat, manualLng, setManualLat, setManualLng, applyManual,
-  photoPreview, onPhotoChange, clearPhoto,
+  notes,
+  setNotes,
+  gps,
+  captureGPS,
+  manualLat,
+  manualLng,
+  setManualLat,
+  setManualLng,
+  applyManual,
+  photoPreview,
+  onPhotoChange,
+  clearPhoto,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
     <div className="iv-panel">
       <div className="iv-panel-title">Capture violation details</div>
-      <div className="iv-panel-hint">Select one or more violations. Totals update live.</div>
+      <div className="iv-panel-hint">
+        Select one or more violations. Totals update live.
+      </div>
 
       {/* ── Violation type ── */}
       <div className="form-group">
@@ -335,7 +413,9 @@ function ViolationStep({
           onClick={() => setPickerOpen(true)}
         >
           {selectedTypes.length === 0 ? (
-            <span className="iv-picker-placeholder">⚠️ Tap to choose violation…</span>
+            <span className="iv-picker-placeholder">
+              ⚠️ Tap to choose violation…
+            </span>
           ) : (
             <span className="iv-picker-selected-label">
               {selectedTypes.length === 1
@@ -357,7 +437,9 @@ function ViolationStep({
                     className="iv-tag-remove"
                     onClick={() => toggleType(t)}
                     aria-label={`Remove ${t.name}`}
-                  >×</button>
+                  >
+                    ×
+                  </button>
                 </span>
               ))}
             </div>
@@ -385,7 +467,11 @@ function ViolationStep({
       <div className="form-group">
         <label className="form-label">Location (GPS) *</label>
         {gps.status === "idle" && (
-          <button type="button" className="btn btn-outline iv-input-lg" onClick={captureGPS}>
+          <button
+            type="button"
+            className="btn btn-outline iv-input-lg"
+            onClick={captureGPS}
+          >
             📍 Capture GPS Location
           </button>
         )}
@@ -399,14 +485,18 @@ function ViolationStep({
               <span className="iv-gps-coords">
                 {gps.lat.toFixed(6)}, {gps.lng.toFixed(6)}
               </span>
-              {gps.status === "mocked" && <span className="iv-gps-tag">demo</span>}
+              {gps.status === "mocked" && (
+                <span className="iv-gps-tag">demo</span>
+              )}
               <button
                 type="button"
                 className="iv-gps-refresh"
                 onClick={captureGPS}
                 aria-label="Refresh GPS"
                 title="Re-capture GPS"
-              >🔄</button>
+              >
+                🔄
+              </button>
             </div>
             <div className="iv-mini-map">
               <MapContainer
@@ -439,7 +529,11 @@ function ViolationStep({
                   value={manualLng}
                   onChange={(e) => setManualLng(e.target.value)}
                 />
-                <button type="button" className="btn btn-outline btn-sm" onClick={applyManual}>
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={applyManual}
+                >
                   Apply
                 </button>
               </div>
@@ -447,13 +541,20 @@ function ViolationStep({
           </>
         )}
         {gps.status === "error" && (
-          <div className="iv-gps error">⚠ Could not capture GPS. <button className="iv-link-btn" onClick={captureGPS}>Retry</button></div>
+          <div className="iv-gps error">
+            ⚠ Could not capture GPS.{" "}
+            <button className="iv-link-btn" onClick={captureGPS}>
+              Retry
+            </button>
+          </div>
         )}
       </div>
 
       {/* ── Photo evidence ── */}
       <div className="form-group">
-        <label className="form-label">Photo Evidence <span className="iv-optional">(optional)</span></label>
+        <label className="form-label">
+          Photo Evidence <span className="iv-optional">(optional)</span>
+        </label>
         {!photoPreview ? (
           <label className="iv-photo-drop">
             <input
@@ -464,12 +565,18 @@ function ViolationStep({
               hidden
             />
             <span className="iv-photo-drop-icon">📷</span>
-            <span className="iv-photo-drop-text">Tap to take or upload photo</span>
+            <span className="iv-photo-drop-text">
+              Tap to take or upload photo
+            </span>
           </label>
         ) : (
           <div className="iv-photo-preview">
             <img src={photoPreview} alt="Evidence preview" />
-            <button type="button" className="iv-photo-remove" onClick={clearPhoto}>
+            <button
+              type="button"
+              className="iv-photo-remove"
+              onClick={clearPhoto}
+            >
               Remove
             </button>
           </div>
@@ -478,7 +585,9 @@ function ViolationStep({
 
       {/* ── Notes ── */}
       <div className="form-group">
-        <label className="form-label">Notes <span className="iv-optional">(optional)</span></label>
+        <label className="form-label">
+          Notes <span className="iv-optional">(optional)</span>
+        </label>
         <textarea
           className="form-textarea iv-input-lg"
           placeholder="Add details about the incident…"
@@ -492,28 +601,46 @@ function ViolationStep({
 }
 
 // ─── Review Step ──────────────────────────────────────────────────────────────
-function ReviewStep({ motoristLabel, motoristMeta, selectedTypes, totalFine, gps, hasPhoto, notes, enforcer }) {
+function ReviewStep({
+  motoristLabel,
+  motoristMeta,
+  selectedTypes,
+  totalFine,
+  gps,
+  hasPhoto,
+  notes,
+  enforcer,
+}) {
   return (
     <div className="iv-panel">
       <div className="iv-panel-title">Review before issuing</div>
-      <div className="iv-panel-hint">Verify the details. Once issued, status changes require admin action.</div>
+      <div className="iv-panel-hint">
+        Verify the details. Once issued, status changes require admin action.
+      </div>
 
       <div className="iv-review-grid">
         <div className="iv-review-row">
           <div className="iv-review-label">Motorist</div>
           <div className="iv-review-value">
             <strong>{motoristLabel}</strong>
-            {motoristMeta && <div className="iv-review-sub">{motoristMeta}</div>}
+            {motoristMeta && (
+              <div className="iv-review-sub">{motoristMeta}</div>
+            )}
           </div>
         </div>
 
         <div className="iv-review-row">
-          <div className="iv-review-label">Violation{selectedTypes.length > 1 ? "s" : ""}</div>
+          <div className="iv-review-label">
+            Violation{selectedTypes.length > 1 ? "s" : ""}
+          </div>
           <div className="iv-review-value">
             <div className="iv-review-tags">
               {selectedTypes.map((t) => (
                 <span key={t.name} className="iv-review-tag">
-                  {t.name} <span className="iv-review-tag-fine">{peso(Number(t.fine) || 0)}</span>
+                  {t.name}{" "}
+                  <span className="iv-review-tag-fine">
+                    {peso(Number(t.fine) || 0)}
+                  </span>
                 </span>
               ))}
             </div>
@@ -522,7 +649,9 @@ function ReviewStep({ motoristLabel, motoristMeta, selectedTypes, totalFine, gps
 
         <div className="iv-review-row">
           <div className="iv-review-label">Total Fine</div>
-          <div className="iv-review-value iv-review-total">{peso(totalFine)}</div>
+          <div className="iv-review-value iv-review-total">
+            {peso(totalFine)}
+          </div>
         </div>
 
         <div className="iv-review-row">
@@ -530,17 +659,27 @@ function ReviewStep({ motoristLabel, motoristMeta, selectedTypes, totalFine, gps
           <div className="iv-review-value">
             {gps.lat ? (
               <>
-                <strong>{gps.lat.toFixed(6)}, {gps.lng.toFixed(6)}</strong>
-                {gps.status === "mocked" && <span className="iv-review-sub">demo coordinates</span>}
+                <strong>
+                  {gps.lat.toFixed(6)}, {gps.lng.toFixed(6)}
+                </strong>
+                {gps.status === "mocked" && (
+                  <span className="iv-review-sub">demo coordinates</span>
+                )}
               </>
-            ) : <span className="iv-review-sub">Not captured</span>}
+            ) : (
+              <span className="iv-review-sub">Not captured</span>
+            )}
           </div>
         </div>
 
         <div className="iv-review-row">
           <div className="iv-review-label">Evidence</div>
           <div className="iv-review-value">
-            {hasPhoto ? "📷 Photo attached" : <span className="iv-review-sub">None</span>}
+            {hasPhoto ? (
+              "📷 Photo attached"
+            ) : (
+              <span className="iv-review-sub">None</span>
+            )}
           </div>
         </div>
 
@@ -553,7 +692,9 @@ function ReviewStep({ motoristLabel, motoristMeta, selectedTypes, totalFine, gps
 
         <div className="iv-review-row">
           <div className="iv-review-label">Issued By</div>
-          <div className="iv-review-value">🚓 <strong>{enforcer.name}</strong></div>
+          <div className="iv-review-value">
+            🚓 <strong>{enforcer.name}</strong>
+          </div>
         </div>
       </div>
     </div>
@@ -572,7 +713,11 @@ export default function IssueViolation({ onSuccess }) {
   const [motoristMode, setMotoristMode] = useState("search");
   const [query, setQuery] = useState("");
   const [selectedMotorist, setSelectedMotorist] = useState(null);
-  const [newMotorist, setNewMotorist] = useState({ name: "", plate: "", license: "" });
+  const [newMotorist, setNewMotorist] = useState({
+    name: "",
+    plate: "",
+    license: "",
+  });
 
   // Violation details
   const [typeQuery, setTypeQuery] = useState("");
@@ -595,12 +740,12 @@ export default function IssueViolation({ onSuccess }) {
       .then(setTypes)
       .catch(() =>
         setTypes([
-          { id: 1, name: "No Helmet",        fine: 500 },
-          { id: 2, name: "Illegal Parking",  fine: 1000 },
-          { id: 3, name: "No License",       fine: 1500 },
+          { id: 1, name: "No Helmet", fine: 500 },
+          { id: 2, name: "Illegal Parking", fine: 1000 },
+          { id: 3, name: "No License", fine: 1500 },
           { id: 4, name: "Reckless Driving", fine: 2500 },
-          { id: 5, name: "Beating Red Light",fine: 1500 },
-          { id: 6, name: "Obstruction",      fine: 1000 },
+          { id: 5, name: "Beating Red Light", fine: 1500 },
+          { id: 6, name: "Obstruction", fine: 1000 },
         ]),
       );
 
@@ -657,8 +802,10 @@ export default function IssueViolation({ onSuccess }) {
     }
     if (motoristMode === "new" && newMotorist.name.trim()) {
       const bits = [];
-      if (newMotorist.plate.trim()) bits.push(`Plate ${newMotorist.plate.trim()}`);
-      if (newMotorist.license.trim()) bits.push(`License ${newMotorist.license.trim()}`);
+      if (newMotorist.plate.trim())
+        bits.push(`Plate ${newMotorist.plate.trim()}`);
+      if (newMotorist.license.trim())
+        bits.push(`License ${newMotorist.license.trim()}`);
       return {
         name: newMotorist.name.trim(),
         id: null,
@@ -727,7 +874,8 @@ export default function IssueViolation({ onSuccess }) {
     }
     setError("");
     setGps({ lat, lng, status: "ok" });
-    setManualLat(""); setManualLng("");
+    setManualLat("");
+    setManualLng("");
   };
 
   const onPhotoChange = (e) => {
@@ -741,16 +889,22 @@ export default function IssueViolation({ onSuccess }) {
     reader.readAsDataURL(file);
   };
 
-  const clearPhoto = () => { setPhotoPreview(null); setPhotoTag(false); };
+  const clearPhoto = () => {
+    setPhotoPreview(null);
+    setPhotoTag(false);
+  };
 
   const goNext = () => {
     setError("");
     if (step === "motorist") {
-      if (!motoristValid) return setError("Identify the motorist before continuing.");
+      if (!motoristValid)
+        return setError("Identify the motorist before continuing.");
       setStep("violation");
     } else if (step === "violation") {
-      if (selectedTypes.length === 0) return setError("Select at least one violation type.");
-      if (gps.lat == null) return setError("Capture GPS location before continuing.");
+      if (selectedTypes.length === 0)
+        return setError("Select at least one violation type.");
+      if (gps.lat == null)
+        return setError("Capture GPS location before continuing.");
       setStep("review");
     }
   };
@@ -770,7 +924,8 @@ export default function IssueViolation({ onSuccess }) {
 
   const handleSubmit = async () => {
     if (!motoristResolved) return setError("Motorist info missing.");
-    if (selectedTypes.length === 0) return setError("Select at least one violation type.");
+    if (selectedTypes.length === 0)
+      return setError("Select at least one violation type.");
 
     setSubmitting(true);
     setError("");
@@ -778,27 +933,29 @@ export default function IssueViolation({ onSuccess }) {
       // Compose notes — stash plate/license/photo flag for demo (backend doesn't model these)
       const noteBits = [];
       if (motoristMode === "new") {
-        if (newMotorist.plate.trim())   noteBits.push(`Plate: ${newMotorist.plate.trim()}`);
-        if (newMotorist.license.trim()) noteBits.push(`License: ${newMotorist.license.trim()}`);
+        if (newMotorist.plate.trim())
+          noteBits.push(`Plate: ${newMotorist.plate.trim()}`);
+        if (newMotorist.license.trim())
+          noteBits.push(`License: ${newMotorist.license.trim()}`);
       }
       if (photoTag) noteBits.push("[Photo evidence attached]");
       if (notes.trim()) noteBits.push(notes.trim());
 
       const result = await createViolation({
-        motorist_name:  motoristResolved.name,
-        motorist_id:    motoristResolved.id,
+        motorist_name: motoristResolved.name,
+        motorist_id: motoristResolved.id,
         violation_type: selectedTypes.map((t) => t.name).join(", "),
-        notes:          noteBits.join(" · "),
-        latitude:       gps.lat,
-        longitude:      gps.lng,
-        enforcer_name:  user.name,
-        enforcer_id:    user.id,
+        notes: noteBits.join(" · "),
+        latitude: gps.lat,
+        longitude: gps.lng,
+        enforcer_name: user.name,
+        enforcer_id: user.id,
       });
 
       setSuccess({
-        ticket_no:     result?.ticket_no || result?.id?.slice?.(0, 8) || "—",
+        ticket_no: result?.ticket_no || result?.id?.slice?.(0, 8) || "—",
         motorist_name: motoristResolved.name,
-        total:         totalFine,
+        total: totalFine,
       });
     } catch (err) {
       setError(err.message || "Failed to submit violation.");
@@ -817,8 +974,10 @@ export default function IssueViolation({ onSuccess }) {
     setTypeQuery("");
     setNotes("");
     setGps({ lat: null, lng: null, status: "idle" });
-    setManualLat(""); setManualLng("");
-    setPhotoPreview(null); setPhotoTag(false);
+    setManualLat("");
+    setManualLng("");
+    setPhotoPreview(null);
+    setPhotoTag(false);
     setSuccess(null);
     setError("");
   };
@@ -830,16 +989,22 @@ export default function IssueViolation({ onSuccess }) {
         <div className="iv-success-check">✓</div>
         <div className="iv-success-title">Violation Issued</div>
         <div className="iv-success-meta">
-          Ticket <strong>#{success.ticket_no}</strong> for <strong>{success.motorist_name}</strong>
+          Ticket <strong>#{success.ticket_no}</strong> for{" "}
+          <strong>{success.motorist_name}</strong>
         </div>
         {success.total > 0 && (
-          <div className="iv-success-total">Fine: <strong>{peso(success.total)}</strong></div>
+          <div className="iv-success-total">
+            Fine: <strong>{peso(success.total)}</strong>
+          </div>
         )}
         <div className="iv-success-actions">
           <button className="btn btn-outline btn-full" onClick={reset}>
             ＋ Issue Another
           </button>
-          <button className="btn btn-primary btn-full" onClick={() => onSuccess?.()}>
+          <button
+            className="btn btn-primary btn-full"
+            onClick={() => onSuccess?.()}
+          >
             View My Issued
           </button>
         </div>
@@ -849,13 +1014,15 @@ export default function IssueViolation({ onSuccess }) {
 
   // ── Helpers for review ─────────────────────────────────────────────────
   const motoristLabel = motoristResolved?.name || "—";
-  const motoristMeta  = motoristResolved?.meta || null;
+  const motoristMeta = motoristResolved?.meta || null;
 
   return (
     <div className="iv-wrap">
       <div className="iv-header">
         <div className="iv-title">Issue Violation</div>
-        <div className="iv-subtitle">Capture fast. Validate smart. Confirm clearly.</div>
+        <div className="iv-subtitle">
+          Capture fast. Validate smart. Confirm clearly.
+        </div>
       </div>
 
       <Stepper current={step} onJump={setStep} canJump={canJump} />
@@ -865,25 +1032,37 @@ export default function IssueViolation({ onSuccess }) {
       <div className="iv-card">
         {step === "motorist" && (
           <MotoristStep
-            motoristMode={motoristMode}     setMotoristMode={setMotoristMode}
-            query={query}                   setQuery={setQuery}
+            motoristMode={motoristMode}
+            setMotoristMode={setMotoristMode}
+            query={query}
+            setQuery={setQuery}
             suggestions={suggestions}
-            selectedMotorist={selectedMotorist} setSelectedMotorist={setSelectedMotorist}
-            newMotorist={newMotorist}       setNewMotorist={setNewMotorist}
+            selectedMotorist={selectedMotorist}
+            setSelectedMotorist={setSelectedMotorist}
+            newMotorist={newMotorist}
+            setNewMotorist={setNewMotorist}
           />
         )}
         {step === "violation" && (
           <ViolationStep
             types={types}
-            typeQuery={typeQuery}           setTypeQuery={setTypeQuery}
-            selectedTypes={selectedTypes}   toggleType={toggleType}
+            typeQuery={typeQuery}
+            setTypeQuery={setTypeQuery}
+            selectedTypes={selectedTypes}
+            toggleType={toggleType}
             totalFine={totalFine}
-            notes={notes}                   setNotes={setNotes}
-            gps={gps}                       captureGPS={captureGPS}
-            manualLat={manualLat}           manualLng={manualLng}
-            setManualLat={setManualLat}     setManualLng={setManualLng}
+            notes={notes}
+            setNotes={setNotes}
+            gps={gps}
+            captureGPS={captureGPS}
+            manualLat={manualLat}
+            manualLng={manualLng}
+            setManualLat={setManualLat}
+            setManualLng={setManualLng}
             applyManual={applyManual}
-            photoPreview={photoPreview}     onPhotoChange={onPhotoChange} clearPhoto={clearPhoto}
+            photoPreview={photoPreview}
+            onPhotoChange={onPhotoChange}
+            clearPhoto={clearPhoto}
           />
         )}
         {step === "review" && (
@@ -908,8 +1087,12 @@ export default function IssueViolation({ onSuccess }) {
             type="button"
             onClick={goBack}
             disabled={submitting}
-          >‹ Back</button>
-        ) : <span />}
+          >
+            ‹ Back
+          </button>
+        ) : (
+          <span />
+        )}
 
         {step === "review" ? (
           <button
@@ -926,8 +1109,9 @@ export default function IssueViolation({ onSuccess }) {
             type="button"
             onClick={goNext}
             disabled={
-              (step === "motorist"  && !motoristValid) ||
-              (step === "violation" && (selectedTypes.length === 0 || gps.lat == null))
+              (step === "motorist" && !motoristValid) ||
+              (step === "violation" &&
+                (selectedTypes.length === 0 || gps.lat == null))
             }
           >
             Next ›

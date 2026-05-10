@@ -75,8 +75,8 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const { user } = await login(email.trim(), password);
-      loginUser(user);
+      const { user, token } = await login(email.trim(), password);
+      loginUser(user, token);
       if (user.role === "admin") navigate("/admin");
       else if (user.role === "enforcer") navigate("/enforcer");
       else navigate("/motorist");

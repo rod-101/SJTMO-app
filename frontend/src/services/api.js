@@ -1,6 +1,28 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
+function getToken() {
+  return localStorage.getItem("sjtmo_token") || "";
+}
+
+function authHeaders(extra = {}) {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${getToken()}`,
+    ...extra,
+  };
+}
+
+function authHeadersOnly() {
+  return { Authorization: `Bearer ${getToken()}` };
+}
+
 const handleResponse = async (res) => {
+  if (res.status === 401) {
+    localStorage.removeItem("sjtmo_user");
+    localStorage.removeItem("sjtmo_token");
+    window.location.href = "/login";
+    return;
+  }
   const text = await res.text();
   if (!text) throw new Error("Server returned an empty response");
   let data;
@@ -9,7 +31,10 @@ const handleResponse = async (res) => {
   } catch {
     throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`);
   }
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  if (!res.ok) {
+    const msg = typeof data.error === "object" ? data.error.message : data.error;
+    throw new Error(msg || "Request failed");
+  }
   return data;
 };
 
@@ -26,109 +51,123 @@ export const getViolations = (motoristName = null) => {
   const url = motoristName
     ? `${BASE_URL}/violations?motorist=${encodeURIComponent(motoristName)}`
     : `${BASE_URL}/violations`;
-  return fetch(url).then(handleResponse);
+  return fetch(url, { headers: authHeadersOnly() }).then(handleResponse);
 };
+
+export const getEnforcerViolations = (enforcerId) =>
+  fetch(`${BASE_URL}/violations?enforcer_id=${encodeURIComponent(enforcerId)}`, {
+    headers: authHeadersOnly(),
+  }).then(handleResponse);
 
 export const createViolation = (data) =>
   fetch(`${BASE_URL}/violations`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const updateViolationStatus = (id, status) =>
   fetch(`${BASE_URL}/violations/${id}/status`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify({ status }),
   }).then(handleResponse);
 
 export const getViolationTypes = () =>
-  fetch(`${BASE_URL}/violations/types`).then(handleResponse);
+  fetch(`${BASE_URL}/violations/types`, {
+    headers: authHeadersOnly(),
+  }).then(handleResponse);
 
-export const addViolationType = (name) =>
+export const addViolationType = (name, fine) =>
   fetch(`${BASE_URL}/violations/types`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    headers: authHeaders(),
+    body: JSON.stringify({ name, fine: Number(fine) || 0 }),
   }).then(handleResponse);
 
 export const updateViolation = (id, data) =>
   fetch(`${BASE_URL}/violations/${id}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const deleteViolation = (id) =>
   fetch(`${BASE_URL}/violations/${id}`, {
     method: "DELETE",
+    headers: authHeadersOnly(),
+  }).then(handleResponse);
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+export const recordPayment = (data) =>
+  fetch(`${BASE_URL}/payments`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  }).then(handleResponse);
+
+export const getPaymentsForViolation = (violationId) =>
+  fetch(`${BASE_URL}/payments/${violationId}`, {
+    headers: authHeadersOnly(),
   }).then(handleResponse);
 
 // ── Ordinances ────────────────────────────────────────────────────────────────
 export const getOrdinances = () =>
-  fetch(`${BASE_URL}/ordinances`).then(handleResponse);
+  fetch(`${BASE_URL}/ordinances`, {
+    headers: authHeadersOnly(),
+  }).then(handleResponse);
 
 export const uploadOrdinance = (formData) =>
   fetch(`${BASE_URL}/ordinances`, {
     method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
     body: formData,
   }).then(handleResponse);
 
 export const deleteOrdinance = (id) =>
-  fetch(`${BASE_URL}/ordinances/${id}`, { method: "DELETE" }).then(
-    handleResponse,
-  );
+  fetch(`${BASE_URL}/ordinances/${id}`, {
+    method: "DELETE",
+    headers: authHeadersOnly(),
+  }).then(handleResponse);
 
 // ── Users ─────────────────────────────────────────────────────────────────────
-const actorHeaders = () => {
-  try {
-    const raw = localStorage.getItem("sjtmo_user");
-    if (!raw) return { "Content-Type": "application/json" };
-    const u = JSON.parse(raw);
-    return { "Content-Type": "application/json", "X-Actor-Id": u?.id || "" };
-  } catch {
-    return { "Content-Type": "application/json" };
-  }
-};
-
 export const getUsers = () =>
-  fetch(`${BASE_URL}/users`, { headers: actorHeaders() }).then(handleResponse);
+  fetch(`${BASE_URL}/users`, { headers: authHeadersOnly() }).then(handleResponse);
 
 export const createUser = (data) =>
   fetch(`${BASE_URL}/users`, {
     method: "POST",
-    headers: actorHeaders(),
+    headers: authHeaders(),
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const updateUser = (id, data) =>
   fetch(`${BASE_URL}/users/${id}`, {
     method: "PATCH",
-    headers: actorHeaders(),
+    headers: authHeaders(),
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const deleteUser = (id) =>
   fetch(`${BASE_URL}/users/${id}`, {
     method: "DELETE",
-    headers: actorHeaders(),
+    headers: authHeadersOnly(),
   }).then(handleResponse);
 
 export const resetUserPassword = (id, password) =>
   fetch(`${BASE_URL}/users/${id}/reset-password`, {
     method: "POST",
-    headers: actorHeaders(),
+    headers: authHeaders(),
     body: JSON.stringify({ password }),
   }).then(handleResponse);
 
 export const forceLogoutUser = (id) =>
   fetch(`${BASE_URL}/users/${id}/force-logout`, {
     method: "POST",
-    headers: actorHeaders(),
+    headers: authHeadersOnly(),
   }).then(handleResponse);
 
 export const getUserActivity = (id) =>
   fetch(`${BASE_URL}/users/${id}/activity`, {
-    headers: actorHeaders(),
+    headers: authHeadersOnly(),
   }).then(handleResponse);

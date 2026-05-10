@@ -205,6 +205,7 @@ function EditModal({ violation, types, onClose, onSaved, toast }) {
 // ─── Add Violation Type Modal ─────────────────────────────────────────────────
 function AddTypeModal({ onClose, onAdded, toast }) {
   const [name, setName] = useState("");
+  const [fine, setFine] = useState("");
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
 
@@ -214,7 +215,7 @@ function AddTypeModal({ onClose, onAdded, toast }) {
     setSaving(true);
     setErr("");
     try {
-      await addViolationType(name.trim());
+      await addViolationType(name.trim(), fine);
       toast.success("Violation type added.");
       onAdded();
       onClose();
@@ -238,6 +239,12 @@ function AddTypeModal({ onClose, onAdded, toast }) {
             <label className="form-label">Violation Type Name</label>
             <input className="form-input" placeholder="e.g. Illegal U-Turn" value={name}
               onChange={(e) => setName(e.target.value)} autoFocus required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Penalty Amount (₱)</label>
+            <input className="form-input" type="number" min="0" step="0.01"
+              placeholder="e.g. 500" value={fine}
+              onChange={(e) => setFine(e.target.value)} />
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Cancel</button>
