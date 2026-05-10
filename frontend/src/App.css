@@ -1070,7 +1070,7 @@ tr:hover td {
 
 /* ── Enforcer page ───────────────────────────────────────── */
 .enforcer-page {
-  max-width: 480px;
+  max-width: 560px;
   margin: 0 auto;
 }
 
@@ -2662,5 +2662,851 @@ tr:hover td {
   }
   .dash-spark {
     height: 130px;
+  }
+}
+
+/* ============================================================
+   ENFORCER · ISSUE VIOLATION (refined)
+   ============================================================ */
+
+.iv-wrap {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 88px; /* space for sticky footer */
+}
+
+.iv-header {
+  margin-bottom: 14px;
+}
+.iv-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+.iv-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+
+/* ── Stepper ─────────────────────────────────────────────── */
+.iv-stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+  padding: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.iv-step {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 10px;
+  color: var(--text-light);
+  transition: background 0.15s, color 0.15s;
+}
+.iv-step:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.iv-step:not(:disabled):hover {
+  background: var(--bg);
+}
+.iv-step-bubble {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-light);
+}
+.iv-step-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.iv-step-active .iv-step-bubble {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 0 0 4px var(--primary-glow);
+}
+.iv-step-active {
+  color: var(--primary);
+}
+.iv-step-done .iv-step-bubble {
+  background: var(--success);
+  border-color: var(--success);
+  color: #fff;
+}
+.iv-step-done {
+  color: var(--text);
+}
+.iv-step-line {
+  flex: 1;
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  min-width: 16px;
+}
+.iv-step-line.done {
+  background: var(--success);
+}
+
+/* ── Card / panel ────────────────────────────────────────── */
+.iv-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 12px;
+}
+.iv-panel {
+  display: flex;
+  flex-direction: column;
+}
+.iv-panel-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.iv-panel-hint {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  margin-bottom: 16px;
+}
+
+.iv-alert {
+  margin-bottom: 10px;
+}
+
+/* ── Big-touch inputs ────────────────────────────────────── */
+.iv-input-lg {
+  font-size: 1rem !important;
+  padding: 12px 14px !important;
+  min-height: 46px;
+}
+textarea.iv-input-lg {
+  min-height: 80px;
+}
+
+.iv-optional {
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.iv-count-pill {
+  margin-left: 8px;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 10px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.iv-loading {
+  font-size: 0.82rem;
+  color: var(--text-light);
+  padding: 8px 0;
+}
+
+/* ── Mode toggle (search vs new) ─────────────────────────── */
+.iv-mode-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 14px;
+  gap: 4px;
+}
+.iv-mode-btn {
+  background: transparent;
+  border: none;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-light);
+  transition: background 0.15s, color 0.15s;
+}
+.iv-mode-btn.active {
+  background: var(--card);
+  color: var(--primary);
+  box-shadow: var(--shadow-xs);
+}
+
+/* ── Search + suggestions ────────────────────────────────── */
+.iv-search-wrap {
+  position: relative;
+}
+.iv-suggest {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  z-index: 10;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 4px;
+}
+.iv-suggest-empty {
+  padding: 12px;
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+.iv-suggest-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: background 0.12s;
+}
+.iv-suggest-item:hover {
+  background: var(--bg);
+}
+.iv-suggest-item.selected {
+  background: var(--blue-soft);
+}
+.iv-suggest-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-orange));
+  color: #fff;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.iv-suggest-body {
+  flex: 1;
+  min-width: 0;
+}
+.iv-suggest-name {
+  font-weight: 600;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.iv-suggest-meta {
+  font-size: 0.74rem;
+  color: var(--text-light);
+}
+.iv-suggest-check {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.iv-link-btn {
+  background: none;
+  border: none;
+  color: var(--brand-blue);
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ── Selected motorist card ─────────────────────────────── */
+.iv-selected-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--blue-soft);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+  border-radius: 10px;
+}
+.iv-selected-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--brand-blue), var(--brand-orange));
+  color: #fff;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.iv-selected-body {
+  flex: 1;
+  min-width: 0;
+}
+.iv-selected-name {
+  font-weight: 700;
+  color: var(--text);
+}
+.iv-selected-meta {
+  font-size: 0.76rem;
+  color: var(--text-light);
+}
+.iv-clear-btn {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 4px 8px;
+}
+.iv-clear-btn:hover {
+  color: var(--danger);
+}
+
+.iv-tip {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Violation picker trigger ───────────────────────────── */
+.iv-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 10px;
+  border: 1.5px dashed var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  transition: all 0.15s;
+  margin-top: 6px;
+}
+.iv-picker-trigger:hover {
+  border-color: var(--primary-light);
+  background: var(--card);
+}
+.iv-picker-trigger.has-selection {
+  border-style: solid;
+  border-color: var(--primary-light);
+  color: var(--text);
+}
+.iv-picker-placeholder { opacity: 0.7; }
+.iv-picker-selected-label { font-weight: 600; }
+.iv-picker-arrow { font-size: 1.1rem; opacity: 0.5; }
+
+/* ── Selected violation tags ────────────────────────────── */
+.iv-selected-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.iv-selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+.iv-tag-remove {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.8);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  margin-left: 2px;
+}
+.iv-tag-remove:hover { color: #fff; }
+
+/* ── Violation picker modal ─────────────────────────────── */
+.iv-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(3px);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0;
+  animation: iv-fade-in 0.15s ease;
+}
+@keyframes iv-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.iv-modal {
+  background: var(--card);
+  border-radius: 18px 18px 0 0;
+  width: 100%;
+  max-width: 560px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  animation: iv-slide-up 0.2s ease;
+  overflow: hidden;
+}
+@keyframes iv-slide-up {
+  from { transform: translateY(60px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.iv-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.iv-modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.iv-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.iv-modal-close:hover { background: var(--bg); color: var(--text); }
+.iv-modal-search {
+  padding: 12px 18px 8px;
+  flex-shrink: 0;
+}
+.iv-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 18px 8px;
+}
+.iv-modal-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px 20px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* ── Type cards (multi-select with fines) ───────────────── */
+.iv-type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+.iv-type-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  text-align: left;
+}
+.iv-type-card:hover {
+  border-color: var(--primary-light);
+  background: var(--bg);
+}
+.iv-type-card.selected {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 4px 14px var(--primary-glow);
+}
+.iv-type-name {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: inherit;
+}
+.iv-type-fine {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--brand-orange);
+}
+.iv-type-card.selected .iv-type-fine {
+  color: #ffd5b3;
+}
+
+.iv-fine-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+  padding: 12px 14px;
+  background: var(--orange-soft);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: var(--brand-orange-hover);
+}
+.iv-fine-total strong {
+  font-size: 1.1rem;
+  color: var(--brand-orange-hover);
+}
+
+/* ── GPS + mini map ─────────────────────────────────────── */
+.iv-gps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.85rem;
+  color: var(--success);
+}
+.iv-gps.loading {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #b45309;
+}
+.iv-gps.error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: var(--danger);
+}
+.iv-gps-coords {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.82rem;
+}
+.iv-gps-tag {
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.iv-gps-refresh {
+  margin-left: auto;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+[data-theme="dark"] .iv-gps {
+  background: rgba(16, 185, 129, 0.10);
+  border-color: rgba(16, 185, 129, 0.30);
+  color: #34d399;
+}
+[data-theme="dark"] .iv-gps.loading {
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.30);
+  color: #fbbf24;
+}
+[data-theme="dark"] .iv-gps.error {
+  background: rgba(239, 68, 68, 0.10);
+  border-color: rgba(239, 68, 68, 0.30);
+  color: #f87171;
+}
+
+.iv-mini-map {
+  position: relative;
+  margin-top: 10px;
+  height: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.iv-mini-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+}
+
+.iv-manual-toggle {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: var(--text-light);
+}
+.iv-manual-toggle summary {
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+.iv-manual-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.iv-manual-row .form-input {
+  flex: 1;
+  min-width: 110px;
+}
+
+/* ── Photo capture ───────────────────────────────────────── */
+.iv-photo-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  border-radius: 12px;
+  border: 2px dashed var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.iv-photo-drop:hover {
+  border-color: var(--primary);
+  background: rgba(20, 12, 126, 0.04);
+}
+.iv-photo-drop-icon {
+  font-size: 1.6rem;
+}
+.iv-photo-drop-text {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  font-weight: 600;
+}
+.iv-photo-preview {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.iv-photo-preview img {
+  width: 100%;
+  display: block;
+  max-height: 220px;
+  object-fit: cover;
+}
+.iv-photo-remove {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Review ──────────────────────────────────────────────── */
+.iv-review-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.iv-review-row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.iv-review-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.iv-review-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--text-light);
+  letter-spacing: 0.5px;
+  padding-top: 2px;
+}
+.iv-review-value {
+  font-size: 0.9rem;
+  color: var(--text);
+  word-break: break-word;
+}
+.iv-review-sub {
+  font-size: 0.76rem;
+  color: var(--text-light);
+  margin-top: 2px;
+}
+.iv-review-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.iv-review-tag {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.82rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.iv-review-tag-fine {
+  color: var(--brand-orange);
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+.iv-review-total {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--brand-orange-hover);
+}
+.iv-review-notes {
+  font-style: italic;
+  color: var(--text-light);
+}
+
+/* ── Sticky footer ───────────────────────────────────────── */
+.iv-footer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin: 0 -14px;
+  background: linear-gradient(180deg, transparent, var(--bg) 30%);
+  z-index: 5;
+}
+.iv-back-btn {
+  min-height: 44px;
+  padding: 0 16px;
+}
+.iv-primary-btn {
+  flex: 1;
+  min-height: 48px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-left: auto;
+  max-width: 320px;
+}
+
+.iv-enforcer-tag {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--text-light);
+  margin-top: 6px;
+}
+
+/* ── Success ─────────────────────────────────────────────── */
+.iv-success-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.iv-success-check {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--success);
+  color: #fff;
+  font-size: 2rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+  box-shadow: 0 6px 20px rgba(46, 125, 50, 0.35);
+}
+.iv-success-title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--success);
+}
+.iv-success-meta {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+.iv-success-total {
+  margin-top: 4px;
+  font-size: 0.95rem;
+  color: var(--brand-orange-hover);
+}
+.iv-success-actions {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  width: 100%;
+}
+
+/* ── Mobile tweaks ───────────────────────────────────────── */
+@media (max-width: 480px) {
+  .iv-step-label {
+    display: none;
+  }
+  .iv-stepper {
+    justify-content: center;
+  }
+  .iv-step {
+    padding: 4px;
+  }
+  .iv-review-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .iv-success-actions {
+    grid-template-columns: 1fr;
+  }
+  .iv-type-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }

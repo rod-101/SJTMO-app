@@ -1,283 +1,943 @@
-import React, { useState, useEffect } from "react";
-import { createViolation, getViolationTypes } from "../../services/api";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { MapContainer, TileLayer, Marker } from "react-leaflet";
+import L from "leaflet";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
+import {
+  createViolation,
+  getViolationTypes,
+  getViolations,
+} from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
 
-export default function IssueViolation({ onSuccess }) {
-  const { user } = useAuth();
-  const [types, setTypes] = useState([]);
-  const [selectedTypes, setSelectedTypes] = useState([]);
-  const [form, setForm] = useState({ motorist_name: "", notes: "" });
-  const [gps, setGps] = useState({ lat: null, lng: null, status: "idle" });
-  const [submitting, setSubmitting] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState("");
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+const SJ_CENTER = { lat: 12.3547, lng: 121.0694 };
+const SJ_BOUNDS = { minLat: 12.28, maxLat: 12.43, minLng: 120.99, maxLng: 121.15 };
+
+const STEPS = [
+  { key: "motorist",  label: "Motorist",   icon: "👤" },
+  { key: "violation", label: "Violation",  icon: "⚠️" },
+  { key: "review",    label: "Review",     icon: "✅" },
+];
+
+const peso = (n) =>
+  typeof n === "number" && !Number.isNaN(n)
+    ? `₱${n.toLocaleString(undefined, { minimumFractionDigits: 0 })}`
+    : "—";
+
+const inSJBounds = (lat, lng) =>
+  lat >= SJ_BOUNDS.minLat && lat <= SJ_BOUNDS.maxLat &&
+  lng >= SJ_BOUNDS.minLng && lng <= SJ_BOUNDS.maxLng;
+
+// ─── Stepper ──────────────────────────────────────────────────────────────────
+function Stepper({ current, onJump, canJump }) {
+  const idx = STEPS.findIndex((s) => s.key === current);
+  return (
+    <div className="iv-stepper">
+      {STEPS.map((s, i) => {
+        const state = i < idx ? "done" : i === idx ? "active" : "todo";
+        return (
+          <React.Fragment key={s.key}>
+            <button
+              type="button"
+              className={`iv-step iv-step-${state}`}
+              onClick={() => canJump(i) && onJump(s.key)}
+              disabled={!canJump(i)}
+            >
+              <span className="iv-step-bubble">
+                {state === "done" ? "✓" : i + 1}
+              </span>
+              <span className="iv-step-label">{s.label}</span>
+            </button>
+            {i < STEPS.length - 1 && (
+              <span className={`iv-step-line${i < idx ? " done" : ""}`} />
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Motorist Step ────────────────────────────────────────────────────────────
+function MotoristStep({
+  motoristMode, setMotoristMode,
+  query, setQuery,
+  suggestions,
+  selectedMotorist, setSelectedMotorist,
+  newMotorist, setNewMotorist,
+}) {
+  const [showSuggest, setShowSuggest] = useState(false);
+  const wrapRef = useRef(null);
 
   useEffect(() => {
-    getViolationTypes()
-      .then((data) => setTypes(data))
-      .catch(() => {
-        setTypes([
-          { id: 1, name: "No Helmet" },
-          { id: 2, name: "Illegal Parking" },
-          { id: 3, name: "No License" },
-          { id: 4, name: "Reckless Driving" },
-          { id: 5, name: "Beating Red Light" },
-          { id: 6, name: "Obstruction" },
-        ]);
-      });
+    const onClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowSuggest(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  const toggleType = (name) => {
-    setSelectedTypes((prev) =>
-      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
-    );
+  return (
+    <div className="iv-panel">
+      <div className="iv-panel-title">Identify the motorist</div>
+      <div className="iv-panel-hint">Search the registry first — add a new motorist only if not found.</div>
+
+      <div className="iv-mode-toggle">
+        <button
+          type="button"
+          className={`iv-mode-btn${motoristMode === "search" ? " active" : ""}`}
+          onClick={() => setMotoristMode("search")}
+        >
+          🔎 Search Motorist
+        </button>
+        <button
+          type="button"
+          className={`iv-mode-btn${motoristMode === "new" ? " active" : ""}`}
+          onClick={() => setMotoristMode("new")}
+        >
+          ＋ New Motorist
+        </button>
+      </div>
+
+      {motoristMode === "search" ? (
+        <div className="iv-search-wrap" ref={wrapRef}>
+          <input
+            className="form-input iv-input-lg"
+            placeholder="Search by name, plate, or ID…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setSelectedMotorist(null);
+              setShowSuggest(true);
+            }}
+            onFocus={() => setShowSuggest(true)}
+            autoFocus
+          />
+          {showSuggest && query.trim().length > 0 && (
+            <div className="iv-suggest">
+              {suggestions.length === 0 ? (
+                <div className="iv-suggest-empty">
+                  No match. Switch to <button
+                    type="button"
+                    className="iv-link-btn"
+                    onClick={() => setMotoristMode("new")}
+                  >
+                    + New Motorist
+                  </button>
+                </div>
+              ) : (
+                suggestions.map((m) => (
+                  <button
+                    key={m.id || m.name}
+                    type="button"
+                    className={`iv-suggest-item${selectedMotorist?.name === m.name ? " selected" : ""}`}
+                    onClick={() => {
+                      setSelectedMotorist(m);
+                      setQuery(m.name);
+                      setShowSuggest(false);
+                    }}
+                  >
+                    <div className="iv-suggest-avatar">
+                      {(m.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                    <div className="iv-suggest-body">
+                      <div className="iv-suggest-name">{m.name}</div>
+                      <div className="iv-suggest-meta">
+                        {m.count ? `${m.count} prior violation${m.count === 1 ? "" : "s"}` : "On record"}
+                      </div>
+                    </div>
+                    {selectedMotorist?.name === m.name && (
+                      <span className="iv-suggest-check">✓</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+          {selectedMotorist && (
+            <div className="iv-selected-card">
+              <div className="iv-selected-avatar">
+                {selectedMotorist.name.charAt(0).toUpperCase()}
+              </div>
+              <div className="iv-selected-body">
+                <div className="iv-selected-name">{selectedMotorist.name}</div>
+                <div className="iv-selected-meta">
+                  {selectedMotorist.count
+                    ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
+                    : "On record"}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="iv-clear-btn"
+                onClick={() => { setSelectedMotorist(null); setQuery(""); }}
+                aria-label="Clear selection"
+              >×</button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="iv-new-form">
+          <div className="form-group">
+            <label className="form-label">Full Name *</label>
+            <input
+              className="form-input iv-input-lg"
+              placeholder="Juan Dela Cruz"
+              value={newMotorist.name}
+              onChange={(e) => setNewMotorist({ ...newMotorist, name: e.target.value })}
+              autoFocus
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Plate Number</label>
+            <input
+              className="form-input iv-input-lg"
+              placeholder="ABC-1234"
+              value={newMotorist.plate}
+              onChange={(e) => setNewMotorist({ ...newMotorist, plate: e.target.value.toUpperCase() })}
+              autoCapitalize="characters"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">License No. <span className="iv-optional">(optional)</span></label>
+            <input
+              className="form-input iv-input-lg"
+              placeholder="N01-23-456789"
+              value={newMotorist.license}
+              onChange={(e) => setNewMotorist({ ...newMotorist, license: e.target.value })}
+            />
+          </div>
+          <div className="iv-tip">Speed first — extra details can be added to the record later.</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Violation Picker Modal ───────────────────────────────────────────────────
+function ViolationPickerModal({ types, typeQuery, setTypeQuery, selectedTypes, toggleType, totalFine, onClose }) {
+  const filteredTypes = useMemo(() => {
+    const q = typeQuery.trim().toLowerCase();
+    if (!q) return types;
+    return types.filter((t) => t.name.toLowerCase().includes(q));
+  }, [types, typeQuery]);
+
+  // Close on backdrop click
+  const handleBackdrop = (e) => {
+    if (e.target === e.currentTarget) onClose();
   };
 
-  const getGPS = () => {
-    // San Jose, Occidental Mindoro center with small random offset for demo
-    const SJ_LAT = 12.3547;
-    const SJ_LNG = 121.0694;
+  // Trap escape key
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="iv-modal-backdrop" onMouseDown={handleBackdrop}>
+      <div className="iv-modal" role="dialog" aria-modal="true" aria-label="Select violation types">
+        <div className="iv-modal-header">
+          <div className="iv-modal-title">
+            Select Violations
+            {selectedTypes.length > 0 && (
+              <span className="iv-count-pill">{selectedTypes.length} selected</span>
+            )}
+          </div>
+          <button type="button" className="iv-modal-close" onClick={onClose} aria-label="Close">×</button>
+        </div>
+
+        <div className="iv-modal-search">
+          <input
+            className="form-input iv-input-lg"
+            placeholder="Search violation type…"
+            value={typeQuery}
+            onChange={(e) => setTypeQuery(e.target.value)}
+            autoFocus
+          />
+        </div>
+
+        <div className="iv-modal-body">
+          {types.length === 0 ? (
+            <div className="iv-loading">Loading types…</div>
+          ) : (
+            <div className="iv-type-grid">
+              {filteredTypes.map((t) => {
+                const sel = selectedTypes.some((s) => s.name === t.name);
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`iv-type-card${sel ? " selected" : ""}`}
+                    onClick={() => toggleType(t)}
+                  >
+                    <span className="iv-type-name">{sel ? "✓ " : ""}{t.name}</span>
+                    <span className="iv-type-fine">{peso(Number(t.fine) || 0)}</span>
+                  </button>
+                );
+              })}
+              {filteredTypes.length === 0 && (
+                <div className="iv-loading">No types match "{typeQuery}".</div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="iv-modal-footer">
+          {selectedTypes.length > 0 && (
+            <div className="iv-fine-total" style={{ marginTop: 0, flex: 1 }}>
+              <span>Total Fine</span>
+              <strong>{peso(totalFine)}</strong>
+            </div>
+          )}
+          <button type="button" className="btn btn-primary" onClick={onClose}>
+            Done{selectedTypes.length > 0 ? ` (${selectedTypes.length})` : ""}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Violation Step ───────────────────────────────────────────────────────────
+function ViolationStep({
+  types, typeQuery, setTypeQuery,
+  selectedTypes, toggleType,
+  totalFine,
+  notes, setNotes,
+  gps, captureGPS, manualLat, manualLng, setManualLat, setManualLng, applyManual,
+  photoPreview, onPhotoChange, clearPhoto,
+}) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  return (
+    <div className="iv-panel">
+      <div className="iv-panel-title">Capture violation details</div>
+      <div className="iv-panel-hint">Select one or more violations. Totals update live.</div>
+
+      {/* ── Violation type ── */}
+      <div className="form-group">
+        <label className="form-label">Violation Type *</label>
+        <button
+          type="button"
+          className={`iv-picker-trigger${selectedTypes.length > 0 ? " has-selection" : ""}`}
+          onClick={() => setPickerOpen(true)}
+        >
+          {selectedTypes.length === 0 ? (
+            <span className="iv-picker-placeholder">⚠️ Tap to choose violation…</span>
+          ) : (
+            <span className="iv-picker-selected-label">
+              {selectedTypes.length === 1
+                ? selectedTypes[0].name
+                : `${selectedTypes.length} violations selected`}
+            </span>
+          )}
+          <span className="iv-picker-arrow">›</span>
+        </button>
+
+        {selectedTypes.length > 0 && (
+          <>
+            <div className="iv-selected-tags">
+              {selectedTypes.map((t) => (
+                <span key={t.name} className="iv-selected-tag">
+                  {t.name}
+                  <button
+                    type="button"
+                    className="iv-tag-remove"
+                    onClick={() => toggleType(t)}
+                    aria-label={`Remove ${t.name}`}
+                  >×</button>
+                </span>
+              ))}
+            </div>
+            <div className="iv-fine-total">
+              <span>Total Fine</span>
+              <strong>{peso(totalFine)}</strong>
+            </div>
+          </>
+        )}
+
+        {pickerOpen && (
+          <ViolationPickerModal
+            types={types}
+            typeQuery={typeQuery}
+            setTypeQuery={setTypeQuery}
+            selectedTypes={selectedTypes}
+            toggleType={toggleType}
+            totalFine={totalFine}
+            onClose={() => setPickerOpen(false)}
+          />
+        )}
+      </div>
+
+      {/* ── Location ── */}
+      <div className="form-group">
+        <label className="form-label">Location (GPS) *</label>
+        {gps.status === "idle" && (
+          <button type="button" className="btn btn-outline iv-input-lg" onClick={captureGPS}>
+            📍 Capture GPS Location
+          </button>
+        )}
+        {gps.status === "loading" && (
+          <div className="iv-gps loading">⏳ Acquiring GPS signal…</div>
+        )}
+        {(gps.status === "ok" || gps.status === "mocked") && (
+          <>
+            <div className="iv-gps">
+              <span>📍</span>
+              <span className="iv-gps-coords">
+                {gps.lat.toFixed(6)}, {gps.lng.toFixed(6)}
+              </span>
+              {gps.status === "mocked" && <span className="iv-gps-tag">demo</span>}
+              <button
+                type="button"
+                className="iv-gps-refresh"
+                onClick={captureGPS}
+                aria-label="Refresh GPS"
+                title="Re-capture GPS"
+              >🔄</button>
+            </div>
+            <div className="iv-mini-map">
+              <MapContainer
+                key={`${gps.lat}-${gps.lng}`}
+                center={[gps.lat, gps.lng]}
+                zoom={16}
+                scrollWheelZoom={false}
+                dragging={false}
+                doubleClickZoom={false}
+                zoomControl={false}
+                attributionControl={false}
+                style={{ height: "100%", width: "100%" }}
+              >
+                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <Marker position={[gps.lat, gps.lng]} />
+              </MapContainer>
+            </div>
+            <details className="iv-manual-toggle">
+              <summary>Override coordinates manually</summary>
+              <div className="iv-manual-row">
+                <input
+                  className="form-input"
+                  placeholder="Latitude"
+                  value={manualLat}
+                  onChange={(e) => setManualLat(e.target.value)}
+                />
+                <input
+                  className="form-input"
+                  placeholder="Longitude"
+                  value={manualLng}
+                  onChange={(e) => setManualLng(e.target.value)}
+                />
+                <button type="button" className="btn btn-outline btn-sm" onClick={applyManual}>
+                  Apply
+                </button>
+              </div>
+            </details>
+          </>
+        )}
+        {gps.status === "error" && (
+          <div className="iv-gps error">⚠ Could not capture GPS. <button className="iv-link-btn" onClick={captureGPS}>Retry</button></div>
+        )}
+      </div>
+
+      {/* ── Photo evidence ── */}
+      <div className="form-group">
+        <label className="form-label">Photo Evidence <span className="iv-optional">(optional)</span></label>
+        {!photoPreview ? (
+          <label className="iv-photo-drop">
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={onPhotoChange}
+              hidden
+            />
+            <span className="iv-photo-drop-icon">📷</span>
+            <span className="iv-photo-drop-text">Tap to take or upload photo</span>
+          </label>
+        ) : (
+          <div className="iv-photo-preview">
+            <img src={photoPreview} alt="Evidence preview" />
+            <button type="button" className="iv-photo-remove" onClick={clearPhoto}>
+              Remove
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Notes ── */}
+      <div className="form-group">
+        <label className="form-label">Notes <span className="iv-optional">(optional)</span></label>
+        <textarea
+          className="form-textarea iv-input-lg"
+          placeholder="Add details about the incident…"
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Review Step ──────────────────────────────────────────────────────────────
+function ReviewStep({ motoristLabel, motoristMeta, selectedTypes, totalFine, gps, hasPhoto, notes, enforcer }) {
+  return (
+    <div className="iv-panel">
+      <div className="iv-panel-title">Review before issuing</div>
+      <div className="iv-panel-hint">Verify the details. Once issued, status changes require admin action.</div>
+
+      <div className="iv-review-grid">
+        <div className="iv-review-row">
+          <div className="iv-review-label">Motorist</div>
+          <div className="iv-review-value">
+            <strong>{motoristLabel}</strong>
+            {motoristMeta && <div className="iv-review-sub">{motoristMeta}</div>}
+          </div>
+        </div>
+
+        <div className="iv-review-row">
+          <div className="iv-review-label">Violation{selectedTypes.length > 1 ? "s" : ""}</div>
+          <div className="iv-review-value">
+            <div className="iv-review-tags">
+              {selectedTypes.map((t) => (
+                <span key={t.name} className="iv-review-tag">
+                  {t.name} <span className="iv-review-tag-fine">{peso(Number(t.fine) || 0)}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="iv-review-row">
+          <div className="iv-review-label">Total Fine</div>
+          <div className="iv-review-value iv-review-total">{peso(totalFine)}</div>
+        </div>
+
+        <div className="iv-review-row">
+          <div className="iv-review-label">Location</div>
+          <div className="iv-review-value">
+            {gps.lat ? (
+              <>
+                <strong>{gps.lat.toFixed(6)}, {gps.lng.toFixed(6)}</strong>
+                {gps.status === "mocked" && <span className="iv-review-sub">demo coordinates</span>}
+              </>
+            ) : <span className="iv-review-sub">Not captured</span>}
+          </div>
+        </div>
+
+        <div className="iv-review-row">
+          <div className="iv-review-label">Evidence</div>
+          <div className="iv-review-value">
+            {hasPhoto ? "📷 Photo attached" : <span className="iv-review-sub">None</span>}
+          </div>
+        </div>
+
+        {notes && (
+          <div className="iv-review-row">
+            <div className="iv-review-label">Notes</div>
+            <div className="iv-review-value iv-review-notes">{notes}</div>
+          </div>
+        )}
+
+        <div className="iv-review-row">
+          <div className="iv-review-label">Issued By</div>
+          <div className="iv-review-value">🚓 <strong>{enforcer.name}</strong></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+export default function IssueViolation({ onSuccess }) {
+  const { user } = useAuth();
+
+  const [step, setStep] = useState("motorist");
+  const [types, setTypes] = useState([]);
+  const [knownMotorists, setKnownMotorists] = useState([]);
+
+  // Motorist
+  const [motoristMode, setMotoristMode] = useState("search");
+  const [query, setQuery] = useState("");
+  const [selectedMotorist, setSelectedMotorist] = useState(null);
+  const [newMotorist, setNewMotorist] = useState({ name: "", plate: "", license: "" });
+
+  // Violation details
+  const [typeQuery, setTypeQuery] = useState("");
+  const [selectedTypes, setSelectedTypes] = useState([]);
+  const [notes, setNotes] = useState("");
+  const [gps, setGps] = useState({ lat: null, lng: null, status: "idle" });
+  const [manualLat, setManualLat] = useState("");
+  const [manualLng, setManualLng] = useState("");
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [photoTag, setPhotoTag] = useState(false); // attached flag
+
+  // Submit
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(null); // { ticket_no, motorist_name }
+  const [error, setError] = useState("");
+
+  // ── Initial load ───────────────────────────────────────────────────────
+  useEffect(() => {
+    getViolationTypes()
+      .then(setTypes)
+      .catch(() =>
+        setTypes([
+          { id: 1, name: "No Helmet",        fine: 500 },
+          { id: 2, name: "Illegal Parking",  fine: 1000 },
+          { id: 3, name: "No License",       fine: 1500 },
+          { id: 4, name: "Reckless Driving", fine: 2500 },
+          { id: 5, name: "Beating Red Light",fine: 1500 },
+          { id: 6, name: "Obstruction",      fine: 1000 },
+        ]),
+      );
+
+    getViolations()
+      .then((all) => {
+        const map = new Map();
+        all.forEach((v) => {
+          const key = (v.motorist_name || "").trim();
+          if (!key) return;
+          const e = map.get(key.toLowerCase()) || {
+            id: v.motorist_id || null,
+            name: key,
+            count: 0,
+          };
+          e.count++;
+          if (!e.id && v.motorist_id) e.id = v.motorist_id;
+          map.set(key.toLowerCase(), e);
+        });
+        setKnownMotorists([...map.values()].sort((a, b) => b.count - a.count));
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Auto-capture GPS when entering violation step ──────────────────────
+  useEffect(() => {
+    if (step === "violation" && gps.status === "idle") captureGPS();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
+  // ── Suggestions ────────────────────────────────────────────────────────
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return knownMotorists.slice(0, 6);
+    return knownMotorists
+      .filter((m) => m.name.toLowerCase().includes(q))
+      .slice(0, 8);
+  }, [query, knownMotorists]);
+
+  // ── Derived ────────────────────────────────────────────────────────────
+  const totalFine = useMemo(
+    () => selectedTypes.reduce((sum, t) => sum + (Number(t.fine) || 0), 0),
+    [selectedTypes],
+  );
+
+  const motoristResolved = useMemo(() => {
+    if (motoristMode === "search" && selectedMotorist) {
+      return {
+        name: selectedMotorist.name,
+        id: selectedMotorist.id || null,
+        meta: selectedMotorist.count
+          ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
+          : "On record",
+      };
+    }
+    if (motoristMode === "new" && newMotorist.name.trim()) {
+      const bits = [];
+      if (newMotorist.plate.trim()) bits.push(`Plate ${newMotorist.plate.trim()}`);
+      if (newMotorist.license.trim()) bits.push(`License ${newMotorist.license.trim()}`);
+      return {
+        name: newMotorist.name.trim(),
+        id: null,
+        meta: bits.join(" · ") || "New motorist",
+      };
+    }
+    return null;
+  }, [motoristMode, selectedMotorist, newMotorist]);
+
+  const motoristValid = !!motoristResolved;
+  const violationValid = selectedTypes.length > 0 && gps.lat != null;
+
+  // ── Handlers ───────────────────────────────────────────────────────────
+  const toggleType = (t) =>
+    setSelectedTypes((prev) =>
+      prev.some((x) => x.name === t.name)
+        ? prev.filter((x) => x.name !== t.name)
+        : [...prev, t],
+    );
+
+  function captureGPS() {
     if (!navigator.geolocation) {
       setGps({
-        lat: SJ_LAT + (Math.random() - 0.5) * 0.02,
-        lng: SJ_LNG + (Math.random() - 0.5) * 0.02,
+        lat: SJ_CENTER.lat + (Math.random() - 0.5) * 0.02,
+        lng: SJ_CENTER.lng + (Math.random() - 0.5) * 0.02,
         status: "mocked",
       });
       return;
     }
     setGps((prev) => ({ ...prev, status: "loading" }));
     navigator.geolocation.getCurrentPosition(
-      (pos) =>
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        if (inSJBounds(lat, lng)) {
+          setGps({ lat, lng, status: "ok" });
+        } else {
+          // outside bounds → fallback to demo coordinates within bounds
+          setGps({
+            lat: SJ_CENTER.lat + (Math.random() - 0.5) * 0.02,
+            lng: SJ_CENTER.lng + (Math.random() - 0.5) * 0.02,
+            status: "mocked",
+          });
+        }
+      },
+      () => {
         setGps({
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
-          status: "ok",
-        }),
-      () =>
-        setGps({
-          lat: SJ_LAT + (Math.random() - 0.5) * 0.02,
-          lng: SJ_LNG + (Math.random() - 0.5) * 0.02,
+          lat: SJ_CENTER.lat + (Math.random() - 0.5) * 0.02,
+          lng: SJ_CENTER.lng + (Math.random() - 0.5) * 0.02,
           status: "mocked",
-        }),
-      { timeout: 8000 },
+        });
+      },
+      { timeout: 8000, enableHighAccuracy: true },
     );
+  }
+
+  const applyManual = () => {
+    const lat = parseFloat(manualLat);
+    const lng = parseFloat(manualLng);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      setError("Enter valid latitude and longitude.");
+      return;
+    }
+    if (!inSJBounds(lat, lng)) {
+      setError("Coordinates must be within San Jose, Occidental Mindoro.");
+      return;
+    }
+    setError("");
+    setGps({ lat, lng, status: "ok" });
+    setManualLat(""); setManualLng("");
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.motorist_name.trim()) {
-      setError("Motorist name is required");
-      return;
+  const onPhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setPhotoPreview(ev.target.result);
+      setPhotoTag(true);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearPhoto = () => { setPhotoPreview(null); setPhotoTag(false); };
+
+  const goNext = () => {
+    setError("");
+    if (step === "motorist") {
+      if (!motoristValid) return setError("Identify the motorist before continuing.");
+      setStep("violation");
+    } else if (step === "violation") {
+      if (selectedTypes.length === 0) return setError("Select at least one violation type.");
+      if (gps.lat == null) return setError("Capture GPS location before continuing.");
+      setStep("review");
     }
-    if (selectedTypes.length === 0) {
-      setError("Please select at least one violation type");
-      return;
-    }
+  };
+
+  const goBack = () => {
+    setError("");
+    if (step === "violation") setStep("motorist");
+    else if (step === "review") setStep("violation");
+  };
+
+  const canJump = (i) => {
+    if (i === 0) return true;
+    if (i === 1) return motoristValid;
+    if (i === 2) return motoristValid && violationValid;
+    return false;
+  };
+
+  const handleSubmit = async () => {
+    if (!motoristResolved) return setError("Motorist info missing.");
+    if (selectedTypes.length === 0) return setError("Select at least one violation type.");
 
     setSubmitting(true);
     setError("");
     try {
-      await createViolation({
-        motorist_name: form.motorist_name.trim(),
-        violation_type: selectedTypes.join(", "),
-        notes: form.notes.trim(),
-        latitude: gps.lat,
-        longitude: gps.lng,
-        enforcer_name: user.name,
-        enforcer_id: user.id,
+      // Compose notes — stash plate/license/photo flag for demo (backend doesn't model these)
+      const noteBits = [];
+      if (motoristMode === "new") {
+        if (newMotorist.plate.trim())   noteBits.push(`Plate: ${newMotorist.plate.trim()}`);
+        if (newMotorist.license.trim()) noteBits.push(`License: ${newMotorist.license.trim()}`);
+      }
+      if (photoTag) noteBits.push("[Photo evidence attached]");
+      if (notes.trim()) noteBits.push(notes.trim());
+
+      const result = await createViolation({
+        motorist_name:  motoristResolved.name,
+        motorist_id:    motoristResolved.id,
+        violation_type: selectedTypes.map((t) => t.name).join(", "),
+        notes:          noteBits.join(" · "),
+        latitude:       gps.lat,
+        longitude:      gps.lng,
+        enforcer_name:  user.name,
+        enforcer_id:    user.id,
       });
-      setSuccess(true);
-      setForm({ motorist_name: "", notes: "" });
-      setSelectedTypes([]);
-      setGps({ lat: null, lng: null, status: "idle" });
-      setTimeout(() => {
-        setSuccess(false);
-        if (onSuccess) onSuccess();
-      }, 2000);
+
+      setSuccess({
+        ticket_no:     result?.ticket_no || result?.id?.slice?.(0, 8) || "—",
+        motorist_name: motoristResolved.name,
+        total:         totalFine,
+      });
     } catch (err) {
-      setError(err.message || "Failed to submit violation");
+      setError(err.message || "Failed to submit violation.");
     } finally {
       setSubmitting(false);
     }
   };
 
+  const reset = () => {
+    setStep("motorist");
+    setMotoristMode("search");
+    setQuery("");
+    setSelectedMotorist(null);
+    setNewMotorist({ name: "", plate: "", license: "" });
+    setSelectedTypes([]);
+    setTypeQuery("");
+    setNotes("");
+    setGps({ lat: null, lng: null, status: "idle" });
+    setManualLat(""); setManualLng("");
+    setPhotoPreview(null); setPhotoTag(false);
+    setSuccess(null);
+    setError("");
+  };
+
+  // ── Success view ───────────────────────────────────────────────────────
   if (success) {
     return (
-      <div className="card" style={{ textAlign: "center", padding: 40 }}>
-        <div style={{ fontSize: "3rem", marginBottom: 12 }}>✅</div>
-        <div
-          style={{
-            fontSize: "1.2rem",
-            fontWeight: 700,
-            color: "#2e7d32",
-            marginBottom: 8,
-          }}
-        >
-          Violation Issued!
+      <div className="iv-success-card">
+        <div className="iv-success-check">✓</div>
+        <div className="iv-success-title">Violation Issued</div>
+        <div className="iv-success-meta">
+          Ticket <strong>#{success.ticket_no}</strong> for <strong>{success.motorist_name}</strong>
         </div>
-        <div style={{ color: "#666", fontSize: "0.9rem" }}>
-          Redirecting to history...
+        {success.total > 0 && (
+          <div className="iv-success-total">Fine: <strong>{peso(success.total)}</strong></div>
+        )}
+        <div className="iv-success-actions">
+          <button className="btn btn-outline btn-full" onClick={reset}>
+            ＋ Issue Another
+          </button>
+          <button className="btn btn-primary btn-full" onClick={() => onSuccess?.()}>
+            View My Issued
+          </button>
         </div>
       </div>
     );
   }
 
+  // ── Helpers for review ─────────────────────────────────────────────────
+  const motoristLabel = motoristResolved?.name || "—";
+  const motoristMeta  = motoristResolved?.meta || null;
+
   return (
-    <div className="card">
-      <div className="card-title">📝 Issue New Violation</div>
+    <div className="iv-wrap">
+      <div className="iv-header">
+        <div className="iv-title">Issue Violation</div>
+        <div className="iv-subtitle">Capture fast. Validate smart. Confirm clearly.</div>
+      </div>
 
-      {error && <div className="alert alert-error">⚠️ {error}</div>}
+      <Stepper current={step} onJump={setStep} canJump={canJump} />
 
-      <form onSubmit={handleSubmit}>
-        {/* Motorist Name */}
-        <div className="form-group">
-          <label className="form-label">Motorist Name *</label>
-          <input
-            className="form-input"
-            placeholder="Enter motorist's full name"
-            value={form.motorist_name}
-            onChange={(e) =>
-              setForm({ ...form, motorist_name: e.target.value })
+      {error && <div className="alert alert-error iv-alert">⚠ {error}</div>}
+
+      <div className="iv-card">
+        {step === "motorist" && (
+          <MotoristStep
+            motoristMode={motoristMode}     setMotoristMode={setMotoristMode}
+            query={query}                   setQuery={setQuery}
+            suggestions={suggestions}
+            selectedMotorist={selectedMotorist} setSelectedMotorist={setSelectedMotorist}
+            newMotorist={newMotorist}       setNewMotorist={setNewMotorist}
+          />
+        )}
+        {step === "violation" && (
+          <ViolationStep
+            types={types}
+            typeQuery={typeQuery}           setTypeQuery={setTypeQuery}
+            selectedTypes={selectedTypes}   toggleType={toggleType}
+            totalFine={totalFine}
+            notes={notes}                   setNotes={setNotes}
+            gps={gps}                       captureGPS={captureGPS}
+            manualLat={manualLat}           manualLng={manualLng}
+            setManualLat={setManualLat}     setManualLng={setManualLng}
+            applyManual={applyManual}
+            photoPreview={photoPreview}     onPhotoChange={onPhotoChange} clearPhoto={clearPhoto}
+          />
+        )}
+        {step === "review" && (
+          <ReviewStep
+            motoristLabel={motoristLabel}
+            motoristMeta={motoristMeta}
+            selectedTypes={selectedTypes}
+            totalFine={totalFine}
+            gps={gps}
+            hasPhoto={!!photoPreview}
+            notes={notes}
+            enforcer={user}
+          />
+        )}
+      </div>
+
+      {/* ── Sticky footer ── */}
+      <div className="iv-footer">
+        {step !== "motorist" ? (
+          <button
+            className="btn btn-outline btn-sm iv-back-btn"
+            type="button"
+            onClick={goBack}
+            disabled={submitting}
+          >‹ Back</button>
+        ) : <span />}
+
+        {step === "review" ? (
+          <button
+            className="btn btn-primary iv-primary-btn"
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? "⏳ Submitting…" : "🚨 Issue Violation"}
+          </button>
+        ) : (
+          <button
+            className="btn btn-primary iv-primary-btn"
+            type="button"
+            onClick={goNext}
+            disabled={
+              (step === "motorist"  && !motoristValid) ||
+              (step === "violation" && (selectedTypes.length === 0 || gps.lat == null))
             }
-            required
-          />
-        </div>
+          >
+            Next ›
+          </button>
+        )}
+      </div>
 
-        {/* Violation Types — MULTISELECT PILLS */}
-        <div className="form-group">
-          <label className="form-label">
-            Violation Type(s) *
-            {selectedTypes.length > 0 && (
-              <span
-                style={{
-                  marginLeft: 8,
-                  background: "var(--primary)",
-                  color: "white",
-                  borderRadius: 10,
-                  padding: "1px 7px",
-                  fontSize: "0.72rem",
-                  fontWeight: 700,
-                }}
-              >
-                {selectedTypes.length} selected
-              </span>
-            )}
-          </label>
-          {types.length === 0 ? (
-            <p style={{ color: "#999", fontSize: "0.85rem" }}>
-              Loading types...
-            </p>
-          ) : (
-            <div className="type-pills-grid">
-              {types.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className={`type-pill ${selectedTypes.includes(t.name) ? "selected" : ""}`}
-                  onClick={() => toggleType(t.name)}
-                >
-                  {selectedTypes.includes(t.name) ? "✓ " : ""}
-                  {t.name}
-                </button>
-              ))}
-            </div>
-          )}
-          {selectedTypes.length > 0 && (
-            <div
-              style={{
-                marginTop: 8,
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 4,
-              }}
-            >
-              {selectedTypes.map((t, i) => (
-                <span
-                  key={i}
-                  className="type-tag"
-                  style={{ cursor: "pointer" }}
-                  onClick={() => toggleType(t)}
-                >
-                  {t} ×
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Notes */}
-        <div className="form-group">
-          <label className="form-label">Notes (Optional)</label>
-          <textarea
-            className="form-textarea"
-            placeholder="Add details about the incident..."
-            value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          />
-        </div>
-
-        {/* GPS */}
-        <div className="form-group">
-          <label className="form-label">Location (GPS)</label>
-          {gps.status === "idle" && (
-            <button type="button" className="btn btn-outline" onClick={getGPS}>
-              📍 Capture GPS Location
-            </button>
-          )}
-          {gps.status === "loading" && (
-            <div className="gps-display loading">
-              ⏳ Getting GPS location...
-            </div>
-          )}
-          {(gps.status === "ok" || gps.status === "mocked") && (
-            <div className="gps-display">
-              📍 {gps.lat.toFixed(6)}, {gps.lng.toFixed(6)}
-              {gps.status === "mocked" && (
-                <span style={{ opacity: 0.7 }}> (demo)</span>
-              )}
-              <button
-                type="button"
-                onClick={() => setGps({ lat: null, lng: null, status: "idle" })}
-                style={{
-                  marginLeft: "auto",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  color: "#666",
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Enforcer Info */}
-        <div
-          style={{
-            background: "#f4f4fc",
-            border: "1px solid #e0e0f0",
-            borderRadius: 8,
-            padding: "10px 14px",
-            fontSize: "0.82rem",
-            color: "#666",
-            marginBottom: 16,
-          }}
-        >
-          🚓 Issuing as: <strong>{user.name}</strong>
-        </div>
-
-        <button
-          className="btn btn-accent btn-full"
-          type="submit"
-          disabled={submitting || selectedTypes.length === 0}
-          style={{ fontSize: "1rem", padding: "14px" }}
-        >
-          {submitting ? "⏳ Submitting..." : "🚨 Issue Violation"}
-        </button>
-      </form>
+      <div className="iv-enforcer-tag">
+        🚓 Issuing as <strong>{user.name}</strong>
+      </div>
     </div>
   );
 }
