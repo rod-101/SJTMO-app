@@ -1,11 +1,11 @@
 import React, { useState, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { updateUser, resetUserPassword } from "../../services/api";
+import { resetUserPassword } from "../../services/api";
 
 export default function EnforcerProfile({ violations }) {
   const { user } = useAuth();
   const [showPwForm, setShowPwForm] = useState(false);
-  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  const [pw, setPw] = useState({ next: "", confirm: "" });
   const [pwMsg, setPwMsg] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -45,7 +45,7 @@ export default function EnforcerProfile({ violations }) {
     try {
       await resetUserPassword(user.id, pw.next);
       setPwMsg({ type: "success", text: "Password updated successfully." });
-      setPw({ current: "", next: "", confirm: "" });
+      setPw({ next: "", confirm: "" });
       setShowPwForm(false);
     } catch (err) {
       setPwMsg({ type: "error", text: err.message || "Failed to update password." });
@@ -61,100 +61,105 @@ export default function EnforcerProfile({ violations }) {
         <div className="enf-page-sub">Your account and performance</div>
       </div>
 
-      {/* Avatar + Name */}
-      <div className="enf-profile-avatar-row">
-        <div className="enf-profile-avatar">
-          {user.name?.charAt(0).toUpperCase()}
-        </div>
-        <div>
-          <div className="enf-profile-name">{user.name}</div>
-          <div className="enf-profile-role">🚓 Enforcer</div>
-        </div>
-      </div>
+      {/* Two-column at desktop: left = identity + account, right = performance + actions */}
+      <div className="enf-profile-grid">
+        {/* Left column */}
+        <div className="enf-profile-col">
+          <div className="enf-profile-avatar-row">
+            <div className="enf-profile-avatar">
+              {user.name?.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <div className="enf-profile-name">{user.name}</div>
+              <div className="enf-profile-role">🚓 Enforcer</div>
+            </div>
+          </div>
 
-      {/* Info Card */}
-      <div className="enf-card">
-        <div className="enf-card-title">Account Info</div>
-        <div className="enf-info-row">
-          <span className="enf-info-label">Email</span>
-          <span className="enf-info-value">{user.email || "—"}</span>
-        </div>
-        <div className="enf-info-row">
-          <span className="enf-info-label">Role</span>
-          <span className="enf-info-value">Enforcer</span>
-        </div>
-        <div className="enf-info-row">
-          <span className="enf-info-label">ID</span>
-          <span className="enf-info-value">#{user.id}</span>
-        </div>
-      </div>
-
-      {/* Performance Card */}
-      <div className="enf-card">
-        <div className="enf-card-title">Performance</div>
-        <div className="enf-perf-grid">
-          <div className="enf-perf-item">
-            <div className="enf-perf-val">{stats.issuedToday}</div>
-            <div className="enf-perf-lbl">Today</div>
-          </div>
-          <div className="enf-perf-item">
-            <div className="enf-perf-val">{stats.monthly}</div>
-            <div className="enf-perf-lbl">This Month</div>
-          </div>
-          <div className="enf-perf-item">
-            <div className="enf-perf-val">{stats.total}</div>
-            <div className="enf-perf-lbl">All Time</div>
-          </div>
-          <div className="enf-perf-item">
-            <div className="enf-perf-val">{stats.unpaid}</div>
-            <div className="enf-perf-lbl">Unpaid</div>
+          <div className="enf-card">
+            <div className="enf-card-title">Account Info</div>
+            <div className="enf-info-row">
+              <span className="enf-info-label">Email</span>
+              <span className="enf-info-value">{user.email || "—"}</span>
+            </div>
+            <div className="enf-info-row">
+              <span className="enf-info-label">Role</span>
+              <span className="enf-info-value">Enforcer</span>
+            </div>
+            <div className="enf-info-row">
+              <span className="enf-info-label">ID</span>
+              <span className="enf-info-value">#{user.id}</span>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Account Actions */}
-      <div className="enf-card">
-        <div className="enf-card-title">Account</div>
-        <button
-          className="enf-action-btn"
-          onClick={() => { setShowPwForm((v) => !v); setPwMsg(null); }}
-        >
-          🔑 Change Password
-        </button>
-
-        {showPwForm && (
-          <form className="enf-pw-form" onSubmit={handleChangePassword}>
-            <input
-              className="enf-input"
-              type="password"
-              placeholder="New password"
-              value={pw.next}
-              onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))}
-              required
-            />
-            <input
-              className="enf-input"
-              type="password"
-              placeholder="Confirm new password"
-              value={pw.confirm}
-              onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))}
-              required
-            />
-            {pwMsg && (
-              <div className={`enf-pw-msg enf-pw-msg--${pwMsg.type}`}>
-                {pwMsg.text}
+        {/* Right column */}
+        <div className="enf-profile-col">
+          <div className="enf-card">
+            <div className="enf-card-title">Performance</div>
+            <div className="enf-perf-grid">
+              <div className="enf-perf-item">
+                <div className="enf-perf-val">{stats.issuedToday}</div>
+                <div className="enf-perf-lbl">Today</div>
               </div>
-            )}
+              <div className="enf-perf-item">
+                <div className="enf-perf-val">{stats.monthly}</div>
+                <div className="enf-perf-lbl">This Month</div>
+              </div>
+              <div className="enf-perf-item">
+                <div className="enf-perf-val">{stats.total}</div>
+                <div className="enf-perf-lbl">All Time</div>
+              </div>
+              <div className="enf-perf-item">
+                <div className="enf-perf-val">{stats.unpaid}</div>
+                <div className="enf-perf-lbl">Unpaid</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="enf-card">
+            <div className="enf-card-title">Account</div>
             <button
-              className="btn btn-primary"
-              type="submit"
-              disabled={saving}
-              style={{ width: "100%", marginTop: 4 }}
+              className="enf-action-btn"
+              onClick={() => { setShowPwForm((v) => !v); setPwMsg(null); }}
             >
-              {saving ? "Saving…" : "Update Password"}
+              🔑 Change Password
             </button>
-          </form>
-        )}
+
+            {showPwForm && (
+              <form className="enf-pw-form" onSubmit={handleChangePassword}>
+                <input
+                  className="enf-input"
+                  type="password"
+                  placeholder="New password"
+                  value={pw.next}
+                  onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))}
+                  required
+                />
+                <input
+                  className="enf-input"
+                  type="password"
+                  placeholder="Confirm new password"
+                  value={pw.confirm}
+                  onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))}
+                  required
+                />
+                {pwMsg && (
+                  <div className={`enf-pw-msg enf-pw-msg--${pwMsg.type}`}>
+                    {pwMsg.text}
+                  </div>
+                )}
+                <button
+                  className="btn btn-primary"
+                  type="submit"
+                  disabled={saving}
+                  style={{ width: "100%", marginTop: 4 }}
+                >
+                  {saving ? "Saving…" : "Update Password"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

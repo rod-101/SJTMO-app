@@ -1468,6 +1468,215 @@ tr:hover td {
   background: #2563eb;
 }
 
+/* ══════════════════════════════════════════════════════════
+   Enforcer Panel — Responsive Breakpoints
+   Mobile-first base above; tablet 640px+; desktop 1024px+
+   ══════════════════════════════════════════════════════════ */
+
+/* ── Tablet (640px+) ─────────────────────────────────────── */
+@media (min-width: 640px) {
+  .enf-content {
+    max-width: 720px;
+    padding: 24px 28px 80px;
+  }
+
+  .enf-page-title {
+    font-size: 1.6rem;
+  }
+
+  /* 4-column metrics on tablet */
+  .enf-metrics-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+  }
+
+  .enf-metric-value {
+    font-size: 2rem;
+  }
+
+  /* Wider recent items show more detail */
+  .enf-recent-meta {
+    gap: 20px;
+    font-size: 0.8rem;
+  }
+
+  /* Perf grid already 4-col — just widen spacing */
+  .enf-perf-grid {
+    gap: 12px;
+  }
+
+  .enf-perf-val {
+    font-size: 1.7rem;
+  }
+
+  /* Profile avatar row: slightly bigger avatar */
+  .enf-profile-avatar {
+    width: 64px;
+    height: 64px;
+    font-size: 1.7rem;
+  }
+
+  /* Bottom nav: stay fixed, add safe-area padding */
+  .enf-bottom-nav {
+    height: 68px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .enf-nav-label {
+    font-size: 0.72rem;
+  }
+}
+
+/* ── Desktop (1024px+) ───────────────────────────────────── */
+@media (min-width: 1024px) {
+  /* Shell grows full width; bottom nav stays centered */
+  .enf-content {
+    max-width: 1000px;
+    padding: 32px 40px 88px;
+  }
+
+  /* ── Dashboard: two-panel side-by-side ── */
+  .enf-dashboard-home {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+
+  /* Left panel: sticky so metrics stay visible while scrolling recent */
+  .enf-dash-left {
+    position: sticky;
+    top: 20px;
+  }
+
+  /* Issue CTA full-width inside its column */
+  .enf-issue-cta {
+    font-size: 1.05rem;
+    padding: 17px;
+  }
+
+  /* ── History: table-style rows ── */
+  .enf-history .enf-recent-list {
+    gap: 0;
+    border: 1px solid var(--border, #e8e8e8);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--card-bg, #fff);
+  }
+
+  .enf-history .enf-recent-item {
+    border-radius: 0;
+    border: none;
+    border-bottom: 1px solid var(--border, #f0f0f0);
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 16px;
+    padding: 12px 20px;
+  }
+
+  .enf-history .enf-recent-item:last-child {
+    border-bottom: none;
+  }
+
+  .enf-history .enf-recent-item:hover {
+    background: var(--hover, #f9f9fb);
+  }
+
+  .enf-history .enf-recent-main {
+    grid-column: 1;
+    grid-row: 1;
+    margin-bottom: 0;
+  }
+
+  .enf-history .enf-recent-meta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    gap: 24px;
+    font-size: 0.8rem;
+  }
+
+  /* History toolbar spacing */
+  .enf-history-toolbar {
+    margin-bottom: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border, #e8e8e8);
+  }
+
+  /* ── Profile: two-column layout ── */
+  .enf-profile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+
+  /* ── Issue Violation: wider form, better grouped ── */
+  .enf-issue-wrap .iv-wrap {
+    max-width: 100%;
+  }
+
+  /* Make form fields go side-by-side inside panels */
+  .enf-issue-wrap .iv-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 16px;
+  }
+
+  /* Title and hint span full width inside the grid */
+  .enf-issue-wrap .iv-panel-title,
+  .enf-issue-wrap .iv-panel-hint,
+  .enf-issue-wrap .iv-motorist-mode,
+  .enf-issue-wrap .iv-search-wrap,
+  .enf-issue-wrap .iv-selected-tag,
+  .enf-issue-wrap .iv-review-grid,
+  .enf-issue-wrap .iv-success-card,
+  .enf-issue-wrap .iv-gps,
+  .enf-issue-wrap .iv-photo-drop,
+  .enf-issue-wrap .iv-photo-preview,
+  .enf-issue-wrap .iv-violation-btn-row,
+  .enf-issue-wrap .iv-type-grid {
+    grid-column: 1 / -1;
+  }
+
+  /* ── Bottom nav: centered strip on wide screens ── */
+  .enf-bottom-nav {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 560px;
+    border-radius: 16px 16px 0 0;
+    border-left: 1px solid var(--border, #e8e8e8);
+    border-right: 1px solid var(--border, #e8e8e8);
+  }
+
+  /* Content bottom padding matches centered nav */
+  .enf-content {
+    padding-bottom: 96px;
+  }
+
+  /* Slightly larger nav labels and icons on desktop */
+  .enf-nav-icon {
+    font-size: 1.35rem;
+  }
+
+  .enf-nav-label {
+    font-size: 0.73rem;
+  }
+}
+
+/* ── Ultra-wide (1280px+): cap and center ────────────────── */
+@media (min-width: 1280px) {
+  .enf-content {
+    max-width: 1100px;
+  }
+
+  .enf-dashboard-home {
+    grid-template-columns: 400px 1fr;
+    gap: 36px;
+  }
+}
+
 .gps-display {
   background: #f0fdf4;
   border: 1px solid #bbf7d0;
