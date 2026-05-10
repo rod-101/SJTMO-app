@@ -1068,10 +1068,404 @@ tr:hover td {
   flex-shrink: 0;
 }
 
-/* ── Enforcer page ───────────────────────────────────────── */
+/* ── Enforcer page (legacy) ──────────────────────────────── */
 .enforcer-page {
   max-width: 560px;
   margin: 0 auto;
+}
+
+/* ── Enforcer Mobile Shell ───────────────────────────────── */
+.enf-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg, #f5f6f8);
+}
+
+.enf-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 80px;
+  max-width: 560px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* ── Page Headers ────────────────────────────────────────── */
+.enf-page-header {
+  margin-bottom: 20px;
+}
+
+.enf-page-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text, #1a1a2e);
+  line-height: 1.2;
+}
+
+.enf-page-sub {
+  font-size: 0.82rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+/* ── Metric Cards ────────────────────────────────────────── */
+.enf-metrics-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.enf-metric-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e8e8e8);
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.enf-metric-value {
+  font-size: 1.9rem;
+  font-weight: 800;
+  color: var(--text, #1a1a2e);
+  line-height: 1;
+}
+
+.enf-metric-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #555;
+  margin-top: 4px;
+}
+
+.enf-metric-sub {
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+/* ── Issue CTA ───────────────────────────────────────────── */
+.enf-issue-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 15px;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-bottom: 24px;
+  transition: background 0.15s;
+}
+
+.enf-issue-cta:active {
+  background: #1d4ed8;
+}
+
+.enf-issue-cta-icon {
+  font-size: 1.2rem;
+}
+
+/* ── Section Title ───────────────────────────────────────── */
+.enf-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin-bottom: 10px;
+}
+
+/* ── Recent List ─────────────────────────────────────────── */
+.enf-recent-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.enf-recent-item {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e8e8e8);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.enf-recent-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.enf-recent-type {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text, #1a1a2e);
+  flex: 1;
+  margin-right: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.enf-recent-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 0.77rem;
+  color: #888;
+}
+
+.enf-recent-notes {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  color: #999;
+  font-style: italic;
+}
+
+/* ── History toolbar ─────────────────────────────────────── */
+.enf-history-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.enf-history-count {
+  font-size: 0.83rem;
+  color: #888;
+}
+
+.enf-loading {
+  text-align: center;
+  padding: 40px;
+  color: #aaa;
+  font-size: 0.9rem;
+}
+
+/* ── Profile ─────────────────────────────────────────────── */
+.enf-profile {
+  padding-bottom: 8px;
+}
+
+.enf-profile-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.enf-profile-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.enf-profile-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text, #1a1a2e);
+}
+
+.enf-profile-role {
+  font-size: 0.8rem;
+  color: #888;
+  margin-top: 2px;
+}
+
+/* ── Generic Card ────────────────────────────────────────── */
+.enf-card {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border, #e8e8e8);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.enf-card-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+/* ── Info rows ───────────────────────────────────────────── */
+.enf-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border, #f0f0f0);
+  font-size: 0.88rem;
+}
+
+.enf-info-row:last-child {
+  border-bottom: none;
+}
+
+.enf-info-label {
+  color: #888;
+}
+
+.enf-info-value {
+  font-weight: 600;
+  color: var(--text, #1a1a2e);
+}
+
+/* ── Performance Grid ────────────────────────────────────── */
+.enf-perf-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  text-align: center;
+}
+
+.enf-perf-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--text, #1a1a2e);
+}
+
+.enf-perf-lbl {
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-top: 2px;
+}
+
+/* ── Action button ───────────────────────────────────────── */
+.enf-action-btn {
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border, #e8e8e8);
+  border-radius: 8px;
+  padding: 11px 14px;
+  text-align: left;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text, #1a1a2e);
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.enf-action-btn:active {
+  background: var(--hover, #f5f5f5);
+}
+
+/* ── Password Form ───────────────────────────────────────── */
+.enf-pw-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.enf-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e0e0e0);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  background: var(--bg, #f9f9f9);
+  color: var(--text, #1a1a2e);
+  box-sizing: border-box;
+}
+
+.enf-pw-msg {
+  font-size: 0.82rem;
+  padding: 6px 0;
+}
+
+.enf-pw-msg--error { color: #dc2626; }
+.enf-pw-msg--success { color: #16a34a; }
+
+/* ── Bottom Navigation ───────────────────────────────────── */
+.enf-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: var(--card-bg, #fff);
+  border-top: 1px solid var(--border, #e8e8e8);
+  display: flex;
+  z-index: 100;
+}
+
+.enf-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #aaa;
+  padding: 6px 4px;
+  transition: color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.enf-nav-btn.enf-nav-active {
+  color: #2563eb;
+}
+
+.enf-nav-icon {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.enf-nav-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ── Dark theme overrides ────────────────────────────────── */
+[data-theme="dark"] .enf-shell {
+  --bg: #0f0f1a;
+  --card-bg: #1a1a2e;
+  --border: #2a2a3e;
+  --text: #e8e8f0;
+  --hover: #22223a;
+}
+
+[data-theme="dark"] .enf-bottom-nav {
+  background: #1a1a2e;
+  border-top-color: #2a2a3e;
+}
+
+[data-theme="dark"] .enf-nav-btn {
+  color: #555;
+}
+
+[data-theme="dark"] .enf-nav-btn.enf-nav-active {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .enf-issue-cta {
+  background: #3b82f6;
+}
+
+[data-theme="dark"] .enf-issue-cta:active {
+  background: #2563eb;
 }
 
 .gps-display {
