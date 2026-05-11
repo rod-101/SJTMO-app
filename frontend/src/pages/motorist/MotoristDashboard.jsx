@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "../../components/Navbar";
+import MotoristBottomNav from "../../components/MotoristBottomNav";
+import MotoristDashboardHome from "./MotoristDashboardHome";
+import MotoristProfile from "./MotoristProfile";
 import ViolationDetail from "./ViolationDetail";
 import { getViolations } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
@@ -7,14 +10,17 @@ import "../../App.css";
 
 export default function MotoristDashboard() {
   const { user } = useAuth();
+  const [tab, setTab] = useState("dashboard");
   const [violations, setViolations] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState(null);
 
   const fetchViolations = useCallback(async () => {
     setLoading(true);
     try {
       const data = await getViolations(user.name);
+      // newest first
+      data.sort((a, b) => new Date(b.date_issued) - new Date(a.date_issued));
       setViolations(data);
     } catch (err) {
       console.error(err);
@@ -24,91 +30,100 @@ export default function MotoristDashboard() {
   }, [user.name]);
 
   useEffect(() => {
-    fetchViolations();
-  }, [fetchViolations]);
-
-  const pendingCount = violations.filter((v) => v.status === "pending").length;
-  const resolvedCount = violations.filter(
-    (v) => v.status === "resolved",
-  ).length;
+    if (tab === "dashboard" || tab === "violations" || tab === "profile") {
+      fetchViolations();
+    }
+  }, [tab, fetchViolations]);
 
   return (
-    <div className="page">
-      <Navbar title="My Violations" />
-      <div className="content" style={{ maxWidth: 600 }}>
-        {/* Stats */}
-        <div
-          className="stats-grid"
-          style={{ gridTemplateColumns: "1fr 1fr 1fr", marginBottom: 20 }}
-        >
-          <div className="stat-card">
-            <div className="stat-value">{violations.length}</div>
-            <div className="stat-label">Total</div>
-          </div>
-          <div className="stat-card danger">
-            <div className="stat-value">{pendingCount}</div>
-            <div className="stat-label">Pending</div>
-          </div>
-          <div className="stat-card success">
-            <div className="stat-value">{resolvedCount}</div>
-            <div className="stat-label">Resolved</div>
-          </div>
-        </div>
+    <div className="enf-shell">
+      <Navbar title="Motorist Portal" />
 
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 12,
-          }}
-        >
-          <div style={{ fontWeight: 600, color: "#333" }}>
-            Violations for <span style={{ color: "#1a237e" }}>{user.name}</span>
-          </div>
-          <button className="btn btn-outline btn-sm" onClick={fetchViolations}>
-            🔄
-          </button>
-        </div>
+      <div className="enf-content">
+        {tab === "dashboard" && (
+          <MotoristDashboardHome
+            violations={violations}
+            onViewAll={() => setTab("violations")}
+            onSelect={setSelected}
+          />
+        )}
 
-        {loading ? (
-          <div style={{ textAlign: "center", padding: 40, color: "#999" }}>
-            <div style={{ fontSize: "2rem", marginBottom: 8 }}>⏳</div>
-            Loading your violations...
-          </div>
-        ) : violations.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">🎉</div>
-            <div className="empty-state-text">No violations on record!</div>
-            <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: 8 }}>
-              Drive safely.
+        {tab === "violations" && (
+          <div className="enf-history">
+            <div className="enf-page-header">
+              <div className="enf-page-title">My Violations</div>
+              <div className="enf-page-sub">Full history of citations issued to you</div>
             </div>
-          </div>
-        ) : (
-          violations.map((v) => (
-            <div
-              key={v.id}
-              className={`violation-card ${v.status}`}
-              onClick={() => setSelected(v)}
-            >
-              <div className="vc-type">{v.violation_type}</div>
-              <div className="vc-meta">
-                <span>📅 {new Date(v.date_issued).toLocaleDateString()}</span>
-                <span>🚓 {v.enforcer_name}</span>
-                <span>
-                  <span className={`badge badge-${v.status}`}>{v.status}</span>
-                </span>
-              </div>
-              <div style={{ fontSize: "0.75rem", color: "#bbb", marginTop: 4 }}>
-                Tap to view details →
-              </div>
+
+            <div className="enf-history-toolbar">
+              <span className="enf-history-count">
+                {violations.length} violation{violations.length !== 1 ? "s" : ""}
+              </span>
+              <button
+                className="btn btn-outline btn-sm"
+                onClick={fetchViolations}
+                disabled={loading}
+              >
+                {loading ? "…" : "🔄 Refresh"}
+              </button>
             </div>
-          ))
+
+            {loading ? (
+              <div className="enf-loading">Loading…</div>
+            ) : violations.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">🎉</div>
+                <div className="empty-state-text">No violations on record!</div>
+                <div style={{ fontSize: "0.8rem", color: "#aaa", marginTop: 8 }}>
+                  Drive safely.
+                </div>
+              </div>
+            ) : (
+              <div className="enf-recent-list">
+                {violations.map((v) => (
+                  <div
+                    key={v.id}
+                    className="enf-recent-item"
+                    onClick={() => setSelected(v)}
+                    style={{ cursor: "pointer" }}
+                  >
+                    <div className="enf-recent-main">
+                      <span className="enf-recent-type">{v.violation_type}</span>
+                      <span className={`badge badge-${v.status || "pending"}`}>
+                        {v.status}
+                      </span>
+                    </div>
+                    <div className="enf-recent-meta">
+                      <span>🎫 {v.ticket_no || "—"}</span>
+                      <span>🚓 {v.enforcer_name}</span>
+                      <span>
+                        {new Date(v.date_issued).toLocaleDateString("en-PH", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                    </div>
+                    {v.notes && (
+                      <div className="enf-recent-notes">{v.notes}</div>
+                    )}
+                    <div style={{ fontSize: "0.72rem", color: "#bbb", marginTop: 4 }}>
+                      Tap to view details →
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {tab === "profile" && (
+          <MotoristProfile violations={violations} />
         )}
       </div>
 
-      {/* Violation Detail Modal */}
+      <MotoristBottomNav active={tab} onChange={setTab} />
+
       {selected && (
         <ViolationDetail
           violation={selected}
