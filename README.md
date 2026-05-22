@@ -26,9 +26,8 @@ It provides a centralized platform for traffic enforcers and administrators to e
 
 ---
 
-## ⚙️ Installation
+## ⚙️ Live System Access
 
-### 1. Clone the Repository
+### 1. Users may access the live platform here:
 ```bash
-git clone https://github.com/your-username/sjtms.git
-cd sjtms
+https://sjtmo-app.onrender.com/
