@@ -1018,13 +1018,6 @@ export default function IssueViolation({ onSuccess }) {
 
   return (
     <div className="iv-wrap">
-      <div className="iv-header">
-        <div className="iv-title">Issue Violation</div>
-        <div className="iv-subtitle">
-          Capture fast. Validate smart. Confirm clearly.
-        </div>
-      </div>
-
       <Stepper current={step} onJump={setStep} canJump={canJump} />
 
       {error && <div className="alert alert-error iv-alert">⚠ {error}</div>}
