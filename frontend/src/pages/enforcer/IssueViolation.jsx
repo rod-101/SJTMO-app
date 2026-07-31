@@ -127,7 +127,7 @@ function MotoristStep({
         <div className="iv-search-wrap" ref={wrapRef}>
           <input
             className="form-input iv-input-lg"
-            placeholder="Search by name, plate, or License no…"
+            placeholder="Search by name..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
