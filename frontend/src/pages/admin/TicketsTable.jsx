@@ -407,7 +407,7 @@ function exportCsv(rows) {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function ViolationsTable({ violations, onRefresh }) {
+export default function TicketsTable({ violations, onRefresh }) {
   const { user: actor } = useAuth();
   const isAdmin = actor?.role === "admin";
   const toast = useToasts();

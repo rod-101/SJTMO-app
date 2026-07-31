@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import Navbar from "../../components/Navbar";
 import ViolationMap from "./ViolationMap";
-import ViolationsTable from "./ViolationsTable";
+import TicketsTable from "./TicketsTable";
 import UserManagement from "./UserManagement";
 import OrdinancesPanel from "./OrdinancesPanel";
 import DashboardOverview from "./DashboardOverview";
@@ -190,7 +190,7 @@ export default function AdminDashboard() {
           {tab === "map" && <ViolationMap violations={violations} />}
 
           {tab === "violations" && (
-            <ViolationsTable
+            <TicketsTable
               violations={violations}
               onRefresh={fetchViolations}
             />

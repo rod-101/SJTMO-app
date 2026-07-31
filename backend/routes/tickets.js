@@ -4,14 +4,14 @@ const pool = require("../db");
 
 const VALID_STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed", "overdue"];
 
-// GET /violations
+// GET /tickets
 router.get("/", async (req, res) => {
   const { motorist, motorist_id } = req.query;
   try {
     let query = `
       SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
-      FROM violations v
-      LEFT JOIN payments p ON p.violation_id = v.id
+      FROM tickets v
+      LEFT JOIN payments p ON p.ticket_id = v.id
       WHERE v.is_deleted = FALSE
       ORDER BY v.date_issued DESC`;
     let params = [];
@@ -19,16 +19,16 @@ router.get("/", async (req, res) => {
     if (motorist_id) {
       query = `
         SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
-        FROM violations v
-        LEFT JOIN payments p ON p.violation_id = v.id
+        FROM tickets v
+        LEFT JOIN payments p ON p.ticket_id = v.id
         WHERE v.motorist_id = $1 AND v.is_deleted = FALSE
         ORDER BY v.date_issued DESC`;
       params = [motorist_id];
     } else if (motorist) {
       query = `
         SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
-        FROM violations v
-        LEFT JOIN payments p ON p.violation_id = v.id
+        FROM tickets v
+        LEFT JOIN payments p ON p.ticket_id = v.id
         WHERE LOWER(v.motorist_name) = LOWER($1) AND v.is_deleted = FALSE
         ORDER BY v.date_issued DESC`;
       params = [motorist];
@@ -37,12 +37,12 @@ router.get("/", async (req, res) => {
     const result = await pool.query(query, params);
     res.json(result.rows);
   } catch (err) {
-    console.error("Get violations error:", err);
+    console.error("Get tickets error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// POST /violations - issue a new ticket
+// POST /tickets - issue a new ticket
 router.post("/", async (req, res) => {
   const {
     motorist_name,
@@ -76,7 +76,7 @@ router.post("/", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `INSERT INTO violations
+      `INSERT INTO tickets
          (motorist_name, motorist_id, violation_type, notes, latitude, longitude, enforcer_name, enforcer_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
@@ -94,7 +94,7 @@ router.post("/", async (req, res) => {
 
     await pool.query(
       `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
-       VALUES ($1, $2, 'TICKET_ISSUED', 'violations', $3, $4)`,
+       VALUES ($1, $2, 'TICKET_ISSUED', 'tickets', $3, $4)`,
       [
         enforcer_id || null,
         enforcer_name,
@@ -105,12 +105,12 @@ router.post("/", async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error("Create violation error:", err);
+    console.error("Create ticket error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// PATCH /violations/:id/status - update violation status
+// PATCH /tickets/:id/status - update ticket status
 router.patch("/:id/status", async (req, res) => {
   const { id } = req.params;
   const { status, changed_by_id, changed_by_name } = req.body;
@@ -120,18 +120,18 @@ router.patch("/:id/status", async (req, res) => {
   }
 
   try {
-    const before = await pool.query("SELECT status FROM violations WHERE id = $1", [id]);
-    if (before.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
+    const before = await pool.query("SELECT status FROM tickets WHERE id = $1", [id]);
+    if (before.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
 
     const result = await pool.query(
-      "UPDATE violations SET status = $1 WHERE id = $2 AND is_deleted = FALSE RETURNING *",
+      "UPDATE tickets SET status = $1 WHERE id = $2 AND is_deleted = FALSE RETURNING *",
       [status, id],
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
+    if (result.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
 
     await pool.query(
       `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, old_value, new_value)
-       VALUES ($1, $2, 'STATUS_CHANGED', 'violations', $3, $4, $5)`,
+       VALUES ($1, $2, 'STATUS_CHANGED', 'tickets', $3, $4, $5)`,
       [
         changed_by_id || null,
         changed_by_name || null,
@@ -143,12 +143,12 @@ router.patch("/:id/status", async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("Update violation error:", err);
+    console.error("Update ticket error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// PUT /violations/:id - full edit
+// PUT /tickets/:id - full edit
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const { motorist_name, violation_type, notes, status, enforcer_name } = req.body;
@@ -159,7 +159,7 @@ router.put("/:id", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `UPDATE violations SET
+      `UPDATE tickets SET
         motorist_name  = COALESCE($1, motorist_name),
         violation_type = COALESCE($2, violation_type),
         notes          = COALESCE($3, notes),
@@ -175,30 +175,30 @@ router.put("/:id", async (req, res) => {
         id,
       ],
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
+    if (result.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
     res.json(result.rows[0]);
   } catch (err) {
-    console.error("Edit violation error:", err);
+    console.error("Edit ticket error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// DELETE /violations/:id - soft delete
+// DELETE /tickets/:id - soft delete
 router.delete("/:id", async (req, res) => {
   try {
     const result = await pool.query(
-      "UPDATE violations SET is_deleted = TRUE WHERE id = $1 RETURNING id",
+      "UPDATE tickets SET is_deleted = TRUE WHERE id = $1 RETURNING id",
       [req.params.id],
     );
-    if (result.rows.length === 0) return res.status(404).json({ error: "Violation not found" });
+    if (result.rows.length === 0) return res.status(404).json({ error: "Ticket not found" });
     res.json({ success: true });
   } catch (err) {
-    console.error("Delete violation error:", err);
+    console.error("Delete ticket error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
-// GET /violations/types
+// GET /tickets/types
 router.get("/types", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM violation_types ORDER BY id");
@@ -209,7 +209,7 @@ router.get("/types", async (req, res) => {
   }
 });
 
-// POST /violations/types
+// POST /tickets/types
 router.post("/types", async (req, res) => {
   const { name, fine } = req.body;
   if (!name || !name.trim()) {

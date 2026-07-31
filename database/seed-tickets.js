@@ -1,9 +1,9 @@
 /**
- * Seeds exactly 100 violations for San Jose, Occidental Mindoro.
- * Deletes ALL existing violations before inserting.
+ * Seeds exactly 100 tickets for San Jose, Occidental Mindoro.
+ * Deletes ALL existing tickets before inserting.
  *
  * Usage (from project root):
- *   node database/seed-violations.js
+ *   node database/seed-tickets.js
  *
  * Requires backend/.env to be configured.
  */
@@ -190,16 +190,16 @@ function buildNote(vt) {
 }
 
 // ── Main ─────────────────────────────────────────────────────
-async function seedViolations() {
+async function seedTickets() {
   const target = process.env.DATABASE_URL
     ? isRemote ? "remote (Render)" : "local (DATABASE_URL)"
     : `local (${process.env.DB_NAME || "sjtmo_db"})`;
 
-  console.log(`\n── Seeding violations on ${target} ─────────────────\n`);
+  console.log(`\n── Seeding tickets on ${target} ─────────────────\n`);
 
-  // Delete ALL existing violations
-  const { rowCount } = await pool.query("DELETE FROM violations");
-  console.log(`  ✓ Deleted ${rowCount} existing violations\n`);
+  // Delete ALL existing tickets
+  const { rowCount } = await pool.query("DELETE FROM tickets");
+  console.log(`  ✓ Deleted ${rowCount} existing tickets\n`);
 
   // Reset ticket sequence so numbers start clean
   await pool.query("ALTER SEQUENCE ticket_seq RESTART WITH 1");
@@ -229,7 +229,7 @@ async function seedViolations() {
   let inserted = 0;
   for (const r of records) {
     await pool.query(
-      `INSERT INTO violations
+      `INSERT INTO tickets
          (motorist_name, violation_type, notes, latitude, longitude, enforcer_name, status, date_issued)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
       [r.motorist_name, r.violation_type, r.notes,
@@ -238,16 +238,16 @@ async function seedViolations() {
     inserted++;
   }
 
-  console.log(`  ✓ ${inserted} violations inserted.\n`);
+  console.log(`  ✓ ${inserted} tickets inserted.\n`);
 
   const stats = await pool.query(
-    "SELECT status, COUNT(*) FROM violations GROUP BY status ORDER BY COUNT(*) DESC",
+    "SELECT status, COUNT(*) FROM tickets GROUP BY status ORDER BY COUNT(*) DESC",
   );
   console.log("── Status breakdown ────────────────────────────────");
   stats.rows.forEach(r => console.log(`  ${r.status.padEnd(12)} ${r.count}`));
 
   const top = await pool.query(
-    `SELECT motorist_name, COUNT(*) AS tickets FROM violations
+    `SELECT motorist_name, COUNT(*) AS tickets FROM tickets
      GROUP BY motorist_name ORDER BY tickets DESC LIMIT 5`,
   );
   console.log("\n── Top repeat offenders ────────────────────────────");
@@ -259,7 +259,7 @@ async function seedViolations() {
   await pool.end();
 }
 
-seedViolations().catch((err) => {
+seedTickets().catch((err) => {
   console.error("\nSeed failed:", err.message);
   process.exit(1);
 });

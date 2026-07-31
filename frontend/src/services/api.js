@@ -49,51 +49,51 @@ export const login = (email, password) =>
 // ── Violations ────────────────────────────────────────────────────────────────
 export const getViolations = (motoristName = null) => {
   const url = motoristName
-    ? `${BASE_URL}/violations?motorist=${encodeURIComponent(motoristName)}`
-    : `${BASE_URL}/violations`;
+    ? `${BASE_URL}/tickets?motorist=${encodeURIComponent(motoristName)}`
+    : `${BASE_URL}/tickets`;
   return fetch(url, { headers: authHeadersOnly() }).then(handleResponse);
 };
 
 export const getEnforcerViolations = (enforcerId) =>
-  fetch(`${BASE_URL}/violations?enforcer_id=${encodeURIComponent(enforcerId)}`, {
+  fetch(`${BASE_URL}/tickets?enforcer_id=${encodeURIComponent(enforcerId)}`, {
     headers: authHeadersOnly(),
   }).then(handleResponse);
 
 export const createViolation = (data) =>
-  fetch(`${BASE_URL}/violations`, {
+  fetch(`${BASE_URL}/tickets`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const updateViolationStatus = (id, status) =>
-  fetch(`${BASE_URL}/violations/${id}/status`, {
+  fetch(`${BASE_URL}/tickets/${id}/status`, {
     method: "PATCH",
     headers: authHeaders(),
     body: JSON.stringify({ status }),
   }).then(handleResponse);
 
 export const getViolationTypes = () =>
-  fetch(`${BASE_URL}/violations/types`, {
+  fetch(`${BASE_URL}/tickets/types`, {
     headers: authHeadersOnly(),
   }).then(handleResponse);
 
 export const addViolationType = (name, fine) =>
-  fetch(`${BASE_URL}/violations/types`, {
+  fetch(`${BASE_URL}/tickets/types`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({ name, fine: Number(fine) || 0 }),
   }).then(handleResponse);
 
 export const updateViolation = (id, data) =>
-  fetch(`${BASE_URL}/violations/${id}`, {
+  fetch(`${BASE_URL}/tickets/${id}`, {
     method: "PUT",
     headers: authHeaders(),
     body: JSON.stringify(data),
   }).then(handleResponse);
 
 export const deleteViolation = (id) =>
-  fetch(`${BASE_URL}/violations/${id}`, {
+  fetch(`${BASE_URL}/tickets/${id}`, {
     method: "DELETE",
     headers: authHeadersOnly(),
   }).then(handleResponse);

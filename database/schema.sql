@@ -76,8 +76,12 @@ DO $$ BEGIN
   END IF;
 END $$;
 
--- ── Violations ───────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS violations (
+-- ── Tickets ──────────────────────────────────────────────────
+-- Migrate legacy table/column names in place for existing deployments
+ALTER TABLE IF EXISTS violations RENAME TO tickets;
+ALTER TABLE IF EXISTS payments RENAME COLUMN violation_id TO ticket_id;
+
+CREATE TABLE IF NOT EXISTS tickets (
     id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     ticket_no       VARCHAR(30)  UNIQUE NOT NULL DEFAULT (
                       'TCT-' || lpad(nextval('ticket_seq')::text,5,'0')
@@ -98,39 +102,40 @@ CREATE TABLE IF NOT EXISTS violations (
     updated_at      TIMESTAMPTZ  DEFAULT NOW()
 );
 
--- Safe migrations for violations table (run before indexes)
-ALTER TABLE violations ADD COLUMN IF NOT EXISTS ticket_no    VARCHAR(30);
-ALTER TABLE violations ADD COLUMN IF NOT EXISTS motorist_id  UUID REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE violations ADD COLUMN IF NOT EXISTS enforcer_id  UUID REFERENCES users(id) ON DELETE SET NULL;
-ALTER TABLE violations ADD COLUMN IF NOT EXISTS is_deleted   BOOLEAN DEFAULT FALSE;
-ALTER TABLE violations ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW();
-ALTER TABLE violations ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
+-- Safe migrations for tickets table (run before indexes)
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ticket_no    VARCHAR(30);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS motorist_id  UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS enforcer_id  UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_deleted   BOOLEAN DEFAULT FALSE;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
 
-CREATE INDEX IF NOT EXISTS idx_violations_motorist  ON violations(motorist_id);
-CREATE INDEX IF NOT EXISTS idx_violations_enforcer  ON violations(enforcer_id);
-CREATE INDEX IF NOT EXISTS idx_violations_status    ON violations(status);
-CREATE INDEX IF NOT EXISTS idx_violations_date      ON violations(date_issued);
-CREATE INDEX IF NOT EXISTS idx_violations_ticket_no ON violations(ticket_no);
+CREATE INDEX IF NOT EXISTS idx_tickets_motorist  ON tickets(motorist_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_enforcer  ON tickets(enforcer_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_status    ON tickets(status);
+CREATE INDEX IF NOT EXISTS idx_tickets_date      ON tickets(date_issued);
+CREATE INDEX IF NOT EXISTS idx_tickets_ticket_no ON tickets(ticket_no);
 
 -- Backfill ticket_no for any existing rows that don't have one
-UPDATE violations
+UPDATE tickets
    SET ticket_no = 'TCT-' || lpad(nextval('ticket_seq')::text,5,'0')
  WHERE ticket_no IS NULL;
 
 -- Enforce NOT NULL after backfill
-ALTER TABLE violations ALTER COLUMN ticket_no SET DEFAULT (
+ALTER TABLE tickets ALTER COLUMN ticket_no SET DEFAULT (
   'TCT-' || lpad(nextval('ticket_seq')::text,5,'0')
 );
 
 -- Expand status CHECK to include new values
-ALTER TABLE violations DROP CONSTRAINT IF EXISTS violations_status_check;
-ALTER TABLE violations ADD CONSTRAINT violations_status_check
+ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_status_check;
+ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check;
+ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
   CHECK (status IN ('pending','paid','resolved','dismissed','disputed','overdue'));
 
 -- ── Payments ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS payments (
     id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
-    violation_id    UUID          NOT NULL REFERENCES violations(id) ON DELETE RESTRICT,
+    ticket_id       UUID          NOT NULL REFERENCES tickets(id) ON DELETE RESTRICT,
     receipt_no      VARCHAR(50)   NOT NULL UNIQUE,
     amount_paid     NUMERIC(10,2) NOT NULL CHECK (amount_paid > 0),
     processed_by    UUID          REFERENCES users(id) ON DELETE SET NULL,
@@ -140,7 +145,7 @@ CREATE TABLE IF NOT EXISTS payments (
     notes           TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_payments_violation ON payments(violation_id);
+CREATE INDEX IF NOT EXISTS idx_payments_ticket ON payments(ticket_id);
 
 -- ── Ordinances ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ordinances (
@@ -177,9 +182,10 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_violations_updated_at ON violations;
-CREATE TRIGGER trg_violations_updated_at
-    BEFORE UPDATE ON violations
+DROP TRIGGER IF EXISTS trg_violations_updated_at ON tickets;
+DROP TRIGGER IF EXISTS trg_tickets_updated_at ON tickets;
+CREATE TRIGGER trg_tickets_updated_at
+    BEFORE UPDATE ON tickets
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
@@ -197,8 +203,8 @@ INSERT INTO violation_types (name, fine) VALUES
   ('Obstruction',      500.00)
 ON CONFLICT (name) DO UPDATE SET fine = EXCLUDED.fine;
 
--- Sample violations (only if table is empty)
-INSERT INTO violations (motorist_name, violation_type, notes, latitude, longitude, enforcer_name, status)
+-- Sample tickets (only if table is empty)
+INSERT INTO tickets (motorist_name, violation_type, notes, latitude, longitude, enforcer_name, status)
 SELECT * FROM (VALUES
   ('Pedro Motorist', 'No Helmet',         'First offense, no helmet along Rizal Avenue',         12.3547, 121.0694, 'Enforcer Juan', 'pending'),
   ('Juan dela Cruz', 'Illegal Parking',   'Parked on no-parking zone near San Jose City Hall',   12.3560, 121.0710, 'Enforcer Juan', 'pending'),
@@ -206,6 +212,6 @@ SELECT * FROM (VALUES
   ('Carlos Reyes',   'Reckless Driving',  'Weaving through traffic near San Jose public market', 12.3572, 121.0658, 'Enforcer Juan', 'pending'),
   ('Pedro Motorist', 'Beating Red Light', 'Ran red light at Roxas-Rizal intersection',           12.3518, 121.0720, 'Enforcer Juan', 'pending')
 ) AS v(motorist_name, violation_type, notes, latitude, longitude, enforcer_name, status)
-WHERE NOT EXISTS (SELECT 1 FROM violations LIMIT 1);
+WHERE NOT EXISTS (SELECT 1 FROM tickets LIMIT 1);
 
 -- User accounts are seeded with hashed passwords via: node database/seed.js

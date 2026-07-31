@@ -20,7 +20,7 @@ export default defineConfig({
     port: 3000,
     proxy: {
       "/login": "http://localhost:5000",
-      "/violations": "http://localhost:5000",
+      "/tickets": "http://localhost:5000",
       "/users": "http://localhost:5000",
       "/ordinances": "http://localhost:5000",
       "/uploads": "http://localhost:5000",

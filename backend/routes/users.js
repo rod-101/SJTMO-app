@@ -337,8 +337,8 @@ router.get("/:id/activity", async (req, res) => {
       ),
       pool.query(
         `SELECT
-           (SELECT COUNT(*) FROM violations WHERE enforcer_id = $1)  AS issued,
-           (SELECT COUNT(*) FROM violations WHERE motorist_id = $1)  AS received`,
+           (SELECT COUNT(*) FROM tickets WHERE enforcer_id = $1)  AS issued,
+           (SELECT COUNT(*) FROM tickets WHERE motorist_id = $1)  AS received`,
         [id],
       ),
     ]);

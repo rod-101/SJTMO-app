@@ -25,13 +25,13 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 const authRoutes = require("./routes/auth");
-const violationRoutes = require("./routes/violations");
+const ticketRoutes = require("./routes/tickets");
 const userRoutes = require("./routes/users");
 const ordinanceRoutes = require("./routes/ordinances");
 const paymentRoutes = require("./routes/payments");
 
 app.use("/login", authRoutes);
-app.use("/violations", violationRoutes);
+app.use("/tickets", ticketRoutes);
 app.use("/users", userRoutes);
 app.use("/ordinances", ordinanceRoutes);
 app.use("/payments", paymentRoutes);

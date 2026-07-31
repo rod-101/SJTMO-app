@@ -3,7 +3,7 @@ const pool = require("../db");
 
 async function markOverdueViolations() {
   const result = await pool.query(`
-    UPDATE violations
+    UPDATE tickets
     SET status = 'overdue', updated_at = NOW()
     WHERE status = 'pending'
       AND date_issued < NOW() - INTERVAL '14 days'
@@ -16,13 +16,13 @@ async function markOverdueViolations() {
 
   for (const id of ids) {
     await pool.query(
-      `INSERT INTO audit_logs (violation_id, old_status, new_status, changed_by_id, changed_by_name)
+      `INSERT INTO audit_logs (ticket_id, old_status, new_status, changed_by_id, changed_by_name)
        VALUES ($1, 'pending', 'overdue', NULL, 'system')`,
       [id],
     );
   }
 
-  console.log(`[overdue-job] Marked ${ids.length} violation(s) as overdue`);
+  console.log(`[overdue-job] Marked ${ids.length} ticket(s) as overdue`);
 }
 
 function startOverdueJob() {

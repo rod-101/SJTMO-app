@@ -1,7 +1,7 @@
 /**
- * Renumbers all existing violations to the TCT-00000 format.
+ * Renumbers all existing tickets to the TCT-00000 format.
  * Assigns new ticket_nos ordered by date_issued ascending so
- * older violations get lower numbers.
+ * older tickets get lower numbers.
  *
  * Usage (from project root):
  *   node database/migrate-ticket-format.js
@@ -37,18 +37,22 @@ async function migrate() {
     await client.query("BEGIN");
 
     // Temporarily drop the unique constraint so we can shuffle values
+    // (handles both the legacy "violations_*" name and the current "tickets_*" name)
     await client.query(
-      "ALTER TABLE violations DROP CONSTRAINT IF EXISTS violations_ticket_no_key"
+      "ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_ticket_no_key"
+    );
+    await client.query(
+      "ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_ticket_no_key"
     );
 
     // Assign new TCT-NNNNN values ordered by date_issued
     await client.query(`
-      UPDATE violations v
+      UPDATE tickets v
       SET ticket_no = sub.new_ticket
       FROM (
         SELECT id,
                'TCT-' || lpad(row_number() OVER (ORDER BY date_issued ASC)::text, 5, '0') AS new_ticket
-        FROM violations
+        FROM tickets
         WHERE is_deleted = FALSE OR is_deleted IS NULL
       ) sub
       WHERE v.id = sub.id
@@ -56,20 +60,20 @@ async function migrate() {
 
     // Restore the unique constraint
     await client.query(
-      "ALTER TABLE violations ADD CONSTRAINT violations_ticket_no_key UNIQUE (ticket_no)"
+      "ALTER TABLE tickets ADD CONSTRAINT tickets_ticket_no_key UNIQUE (ticket_no)"
     );
 
     // Reset the sequence so new tickets continue after the highest number used
     const { rows } = await client.query(`
       SELECT MAX(CAST(SUBSTRING(ticket_no FROM 5) AS INTEGER)) AS max_seq
-      FROM violations
+      FROM tickets
       WHERE ticket_no LIKE 'TCT-%'
     `);
     const maxSeq = rows[0].max_seq || 0;
     await client.query(`SELECT setval('ticket_seq', $1)`, [maxSeq]);
 
     await client.query("COMMIT");
-    console.log(`\n✓ Migrated all violations to TCT format. Sequence reset to ${maxSeq}.\n`);
+    console.log(`\n✓ Migrated all tickets to TCT format. Sequence reset to ${maxSeq}.\n`);
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("\n✗ Migration failed (rolled back):", err.message, "\n");
