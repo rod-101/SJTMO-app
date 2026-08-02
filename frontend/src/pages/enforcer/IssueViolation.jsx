@@ -7,7 +7,8 @@ import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import {
   createViolation,
   getViolationTypes,
-  getViolations,
+  searchMotorists,
+  saveMotorist,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -76,17 +77,7 @@ function Stepper({ current, onJump, canJump }) {
 }
 
 // ─── Motorist Step ────────────────────────────────────────────────────────────
-function MotoristStep({
-  motoristMode,
-  setMotoristMode,
-  query,
-  setQuery,
-  suggestions,
-  selectedMotorist,
-  setSelectedMotorist,
-  newMotorist,
-  setNewMotorist,
-}) {
+function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristForm }) {
   const [showSuggest, setShowSuggest] = useState(false);
   const wrapRef = useRef(null);
 
@@ -99,160 +90,153 @@ function MotoristStep({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
+  const selectMotorist = (m) => {
+    setMotoristForm({
+      id: m.id,
+      first_name: m.first_name || "",
+      last_name: m.last_name || "",
+      license_no: m.license_no || "",
+      birthday: m.birthday ? m.birthday.slice(0, 10) : "",
+      address: m.address || "",
+      contact_no: m.contact_no || "",
+    });
+    setQuery(`${m.first_name} ${m.last_name}`);
+    setShowSuggest(false);
+  };
+
+  const field = (key) => (e) =>
+    setMotoristForm({ ...motoristForm, [key]: e.target.value });
+
   return (
     <div className="iv-panel">
       <div className="iv-panel-title">Identify the motorist</div>
       <div className="iv-panel-hint">
-        Search the registry first — add a new motorist only if not found.
+        Search the registry — matches auto-fill the form below, which you can
+        edit before issuing.
       </div>
 
-      <div className="iv-mode-toggle">
-        <button
-          type="button"
-          className={`iv-mode-btn${motoristMode === "search" ? " active" : ""}`}
-          onClick={() => setMotoristMode("search")}
-        >
-          🔎 Search Motorist
-        </button>
-        <button
-          type="button"
-          className={`iv-mode-btn${motoristMode === "new" ? " active" : ""}`}
-          onClick={() => setMotoristMode("new")}
-        >
-          ＋ New Motorist
-        </button>
+      <div className="iv-search-wrap" ref={wrapRef}>
+        <input
+          className="form-input iv-input-lg"
+          placeholder="Search by name or license no..."
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setShowSuggest(true);
+          }}
+          onFocus={() => setShowSuggest(true)}
+          autoFocus
+        />
+        {showSuggest && query.trim().length > 0 && (
+          <div className="iv-suggest">
+            {suggestions.length === 0 ? (
+              <div className="iv-suggest-empty">
+                No match — fill in the form below to add a new motorist.
+              </div>
+            ) : (
+              suggestions.map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  className={`iv-suggest-item${motoristForm.id === m.id ? " selected" : ""}`}
+                  onClick={() => selectMotorist(m)}
+                >
+                  <div className="iv-suggest-avatar">
+                    {(m.first_name || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="iv-suggest-body">
+                    <div className="iv-suggest-name">
+                      {m.first_name} {m.last_name}
+                    </div>
+                    <div className="iv-suggest-meta">
+                      {[
+                        m.license_no ? `License ${m.license_no}` : "No license",
+                        Number(m.ticket_count) > 0
+                          ? `${m.ticket_count} prior violation${Number(m.ticket_count) === 1 ? "" : "s"}`
+                          : "No previous violations",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </div>
+                  {motoristForm.id === m.id && (
+                    <span className="iv-suggest-check">✓</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
-      {motoristMode === "search" ? (
-        <div className="iv-search-wrap" ref={wrapRef}>
-          <input
-            className="form-input iv-input-lg"
-            placeholder="Search by name or license no..."
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setSelectedMotorist(null);
-              setShowSuggest(true);
-            }}
-            onFocus={() => setShowSuggest(true)}
-            autoFocus
-          />
-          {showSuggest && query.trim().length > 0 && (
-            <div className="iv-suggest">
-              {suggestions.length === 0 ? (
-                <div className="iv-suggest-empty">
-                  No match. Switch to{" "}
-                  <button
-                    type="button"
-                    className="iv-link-btn"
-                    onClick={() => setMotoristMode("new")}
-                  >
-                    + New Motorist
-                  </button>
-                </div>
-              ) : (
-                suggestions.map((m) => (
-                  <button
-                    key={m.id || m.name}
-                    type="button"
-                    className={`iv-suggest-item${selectedMotorist?.name === m.name ? " selected" : ""}`}
-                    onClick={() => {
-                      setSelectedMotorist(m);
-                      setQuery(m.name);
-                      setShowSuggest(false);
-                    }}
-                  >
-                    <div className="iv-suggest-avatar">
-                      {(m.name || "?").charAt(0).toUpperCase()}
-                    </div>
-                    <div className="iv-suggest-body">
-                      <div className="iv-suggest-name">{m.name}</div>
-                      <div className="iv-suggest-meta">
-                        {[
-                          m.license ? `License ${m.license}` : "No license",
-                          m.count
-                            ? `${m.count} prior violation${m.count === 1 ? "" : "s"}`
-                            : "No previous violations",
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </div>
-                    </div>
-                    {selectedMotorist?.name === m.name && (
-                      <span className="iv-suggest-check">✓</span>
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-          )}
-          {selectedMotorist && (
-            <div className="iv-selected-card">
-              <div className="iv-selected-avatar">
-                {selectedMotorist.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="iv-selected-body">
-                <div className="iv-selected-name">{selectedMotorist.name}</div>
-                <div className="iv-selected-meta">
-                  {[
-                    selectedMotorist.license
-                      ? `License ${selectedMotorist.license}`
-                      : null,
-                    selectedMotorist.count
-                      ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
-                      : "On record",
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </div>
-              </div>
-              <button
-                type="button"
-                className="iv-clear-btn"
-                onClick={() => {
-                  setSelectedMotorist(null);
-                  setQuery("");
-                }}
-                aria-label="Clear selection"
-              >
-                ×
-              </button>
-            </div>
-          )}
-        </div>
-      ) : (
-        <div className="iv-new-form">
+      <div className="iv-new-form">
+        <div className="iv-manual-row">
           <div className="form-group">
-            <label className="form-label">Full Name *</label>
+            <label className="form-label">First Name *</label>
             <input
               className="form-input iv-input-lg"
-              placeholder="Juan Dela Cruz"
-              value={newMotorist.name}
-              onChange={(e) =>
-                setNewMotorist({ ...newMotorist, name: e.target.value })
-              }
-              autoFocus
+              placeholder="Juan"
+              value={motoristForm.first_name}
+              onChange={field("first_name")}
               required
             />
           </div>
           <div className="form-group">
-            <label className="form-label">
-              License No. <span className="iv-optional">(optional)</span>
-            </label>
+            <label className="form-label">Last Name *</label>
             <input
               className="form-input iv-input-lg"
-              placeholder="N01-23-456789"
-              value={newMotorist.license}
-              onChange={(e) =>
-                setNewMotorist({ ...newMotorist, license: e.target.value })
-              }
+              placeholder="Dela Cruz"
+              value={motoristForm.last_name}
+              onChange={field("last_name")}
+              required
             />
           </div>
-          <div className="iv-tip">
-            Speed first — extra details can be added to the record later.
-          </div>
         </div>
-      )}
+        <div className="form-group">
+          <label className="form-label">
+            License No. <span className="iv-optional">(optional)</span>
+          </label>
+          <input
+            className="form-input iv-input-lg"
+            placeholder="N01-23-456789"
+            value={motoristForm.license_no}
+            onChange={field("license_no")}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">
+            Birthday <span className="iv-optional">(optional)</span>
+          </label>
+          <input
+            type="date"
+            className="form-input iv-input-lg"
+            value={motoristForm.birthday}
+            onChange={field("birthday")}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">
+            Address <span className="iv-optional">(optional)</span>
+          </label>
+          <input
+            className="form-input iv-input-lg"
+            placeholder="Poblacion, San Jose, Occidental Mindoro"
+            value={motoristForm.address}
+            onChange={field("address")}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">
+            Contact No. <span className="iv-optional">(optional)</span>
+          </label>
+          <input
+            className="form-input iv-input-lg"
+            placeholder="09171234567"
+            value={motoristForm.contact_no}
+            onChange={field("contact_no")}
+          />
+        </div>
+      </div>
     </div>
   );
 }
@@ -704,15 +688,18 @@ export default function IssueViolation({ onSuccess }) {
 
   const [step, setStep] = useState("motorist");
   const [types, setTypes] = useState([]);
-  const [knownMotorists, setKnownMotorists] = useState([]);
 
   // Motorist
-  const [motoristMode, setMotoristMode] = useState("search");
   const [query, setQuery] = useState("");
-  const [selectedMotorist, setSelectedMotorist] = useState(null);
-  const [newMotorist, setNewMotorist] = useState({
-    name: "",
-    license: "",
+  const [suggestions, setSuggestions] = useState([]);
+  const [motoristForm, setMotoristForm] = useState({
+    id: null,
+    first_name: "",
+    last_name: "",
+    license_no: "",
+    birthday: "",
+    address: "",
+    contact_no: "",
   });
 
   // Violation details
@@ -745,46 +732,28 @@ export default function IssueViolation({ onSuccess }) {
         ]),
       );
 
-    getViolations()
-      .then((all) => {
-        const map = new Map();
-        all.forEach((v) => {
-          const key = (v.motorist_name || "").trim();
-          if (!key) return;
-          const e = map.get(key.toLowerCase()) || {
-            id: v.motorist_id || null,
-            name: key,
-            license: null,
-            count: 0,
-          };
-          e.count++;
-          if (!e.id && v.motorist_id) e.id = v.motorist_id;
-          if (!e.license && v.license_no) e.license = v.license_no;
-          map.set(key.toLowerCase(), e);
-        });
-        setKnownMotorists([...map.values()].sort((a, b) => b.count - a.count));
-      })
-      .catch(() => {});
   }, []);
+
+  // ── Motorist search (debounced) ─────────────────────────────────────────
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setSuggestions([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchMotorists(q)
+        .then(setSuggestions)
+        .catch(() => setSuggestions([]));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [query]);
 
   // ── Auto-capture GPS when entering violation step ──────────────────────
   useEffect(() => {
     if (step === "violation" && gps.status === "idle") captureGPS();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
-
-  // ── Suggestions ────────────────────────────────────────────────────────
-  const suggestions = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return knownMotorists.slice(0, 6);
-    return knownMotorists
-      .filter(
-        (m) =>
-          m.name.toLowerCase().includes(q) ||
-          (m.license || "").toLowerCase().includes(q),
-      )
-      .slice(0, 8);
-  }, [query, knownMotorists]);
 
   // ── Derived ────────────────────────────────────────────────────────────
   const totalFine = useMemo(
@@ -793,35 +762,20 @@ export default function IssueViolation({ onSuccess }) {
   );
 
   const motoristResolved = useMemo(() => {
-    if (motoristMode === "search" && selectedMotorist) {
-      const bits = [];
-      if (selectedMotorist.license)
-        bits.push(`License ${selectedMotorist.license}`);
-      bits.push(
-        selectedMotorist.count
-          ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
-          : "On record",
-      );
-      return {
-        name: selectedMotorist.name,
-        id: selectedMotorist.id || null,
-        license: selectedMotorist.license || null,
-        meta: bits.join(" · "),
-      };
-    }
-    if (motoristMode === "new" && newMotorist.name.trim()) {
-      const bits = [];
-      if (newMotorist.license.trim())
-        bits.push(`License ${newMotorist.license.trim()}`);
-      return {
-        name: newMotorist.name.trim(),
-        id: null,
-        license: newMotorist.license.trim() || null,
-        meta: bits.join(" · ") || "New motorist",
-      };
-    }
-    return null;
-  }, [motoristMode, selectedMotorist, newMotorist]);
+    const firstName = motoristForm.first_name.trim();
+    const lastName = motoristForm.last_name.trim();
+    if (!firstName || !lastName) return null;
+    const bits = [];
+    if (motoristForm.license_no.trim())
+      bits.push(`License ${motoristForm.license_no.trim()}`);
+    if (motoristForm.contact_no.trim())
+      bits.push(motoristForm.contact_no.trim());
+    return {
+      name: `${firstName} ${lastName}`,
+      license: motoristForm.license_no.trim() || null,
+      meta: bits.join(" · ") || (motoristForm.id ? "On record" : "New motorist"),
+    };
+  }, [motoristForm]);
 
   const motoristValid = !!motoristResolved;
   const violationValid = selectedTypes.length > 0 && gps.lat != null;
@@ -938,19 +892,24 @@ export default function IssueViolation({ onSuccess }) {
     setSubmitting(true);
     setError("");
     try {
-      // Compose notes — stash plate/license/photo flag for demo (backend doesn't model these)
+      const motorist = await saveMotorist({
+        id: motoristForm.id,
+        first_name: motoristForm.first_name.trim(),
+        last_name: motoristForm.last_name.trim(),
+        license_no: motoristForm.license_no.trim() || null,
+        birthday: motoristForm.birthday || null,
+        address: motoristForm.address.trim() || null,
+        contact_no: motoristForm.contact_no.trim() || null,
+      });
+
       const noteBits = [];
-      if (motoristMode === "new") {
-        if (newMotorist.license.trim())
-          noteBits.push(`License: ${newMotorist.license.trim()}`);
-      }
       if (photoTag) noteBits.push("[Photo evidence attached]");
       if (notes.trim()) noteBits.push(notes.trim());
 
       const result = await createViolation({
         motorist_name: motoristResolved.name,
-        motorist_id: motoristResolved.id,
-        license_no: motoristResolved.license,
+        motorist_id: motorist.id,
+        license_no: motorist.license_no,
         violation_type: selectedTypes.map((t) => t.name).join(", "),
         notes: noteBits.join(" · "),
         latitude: gps.lat,
@@ -973,10 +932,17 @@ export default function IssueViolation({ onSuccess }) {
 
   const reset = () => {
     setStep("motorist");
-    setMotoristMode("search");
     setQuery("");
-    setSelectedMotorist(null);
-    setNewMotorist({ name: "", license: "" });
+    setSuggestions([]);
+    setMotoristForm({
+      id: null,
+      first_name: "",
+      last_name: "",
+      license_no: "",
+      birthday: "",
+      address: "",
+      contact_no: "",
+    });
     setSelectedTypes([]);
     setTypeQuery("");
     setNotes("");
@@ -1032,15 +998,11 @@ export default function IssueViolation({ onSuccess }) {
       <div className="iv-card">
         {step === "motorist" && (
           <MotoristStep
-            motoristMode={motoristMode}
-            setMotoristMode={setMotoristMode}
             query={query}
             setQuery={setQuery}
             suggestions={suggestions}
-            selectedMotorist={selectedMotorist}
-            setSelectedMotorist={setSelectedMotorist}
-            newMotorist={newMotorist}
-            setNewMotorist={setNewMotorist}
+            motoristForm={motoristForm}
+            setMotoristForm={setMotoristForm}
           />
         )}
         {step === "violation" && (

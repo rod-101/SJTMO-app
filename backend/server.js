@@ -29,12 +29,14 @@ const ticketRoutes = require("./routes/tickets");
 const userRoutes = require("./routes/users");
 const ordinanceRoutes = require("./routes/ordinances");
 const paymentRoutes = require("./routes/payments");
+const motoristRoutes = require("./routes/motorists");
 
 app.use("/login", authRoutes);
 app.use("/tickets", ticketRoutes);
 app.use("/users", userRoutes);
 app.use("/ordinances", ordinanceRoutes);
 app.use("/payments", paymentRoutes);
+app.use("/motorists", motoristRoutes);
 
 // Health check — useful for Render uptime monitoring
 app.get("/health", (req, res) => {

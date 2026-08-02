@@ -144,6 +144,28 @@ ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check;
 ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
   CHECK (status IN ('pending','paid','resolved','dismissed','disputed','overdue'));
 
+-- ── Motorists ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS motorists (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    first_name    VARCHAR(100) NOT NULL,
+    last_name     VARCHAR(100) NOT NULL,
+    license_no    VARCHAR(30),
+    birthday      DATE,
+    address       TEXT,
+    contact_no    VARCHAR(20),
+    created_at    TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ  DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_motorists_name    ON motorists(last_name, first_name);
+CREATE INDEX IF NOT EXISTS idx_motorists_license ON motorists(license_no);
+
+-- tickets.motorist_id now points at motorists, not users
+ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_motorist_id_fkey;
+ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_motorist_id_fkey;
+ALTER TABLE tickets ADD CONSTRAINT tickets_motorist_id_fkey
+  FOREIGN KEY (motorist_id) REFERENCES motorists(id) ON DELETE SET NULL;
+
 -- ── Payments ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS payments (
     id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -203,6 +225,11 @@ CREATE TRIGGER trg_tickets_updated_at
 DROP TRIGGER IF EXISTS trg_users_updated_at ON users;
 CREATE TRIGGER trg_users_updated_at
     BEFORE UPDATE ON users
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_motorists_updated_at ON motorists;
+CREATE TRIGGER trg_motorists_updated_at
+    BEFORE UPDATE ON motorists
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ── Static seed data ─────────────────────────────────────────
