@@ -236,21 +236,6 @@ function MotoristStep({
             />
           </div>
           <div className="form-group">
-            <label className="form-label">Plate Number</label>
-            <input
-              className="form-input iv-input-lg"
-              placeholder="ABC-1234"
-              value={newMotorist.plate}
-              onChange={(e) =>
-                setNewMotorist({
-                  ...newMotorist,
-                  plate: e.target.value.toUpperCase(),
-                })
-              }
-              autoCapitalize="characters"
-            />
-          </div>
-          <div className="form-group">
             <label className="form-label">
               License No. <span className="iv-optional">(optional)</span>
             </label>
@@ -727,7 +712,6 @@ export default function IssueViolation({ onSuccess }) {
   const [selectedMotorist, setSelectedMotorist] = useState(null);
   const [newMotorist, setNewMotorist] = useState({
     name: "",
-    plate: "",
     license: "",
   });
 
@@ -827,8 +811,6 @@ export default function IssueViolation({ onSuccess }) {
     }
     if (motoristMode === "new" && newMotorist.name.trim()) {
       const bits = [];
-      if (newMotorist.plate.trim())
-        bits.push(`Plate ${newMotorist.plate.trim()}`);
       if (newMotorist.license.trim())
         bits.push(`License ${newMotorist.license.trim()}`);
       return {
@@ -959,8 +941,6 @@ export default function IssueViolation({ onSuccess }) {
       // Compose notes — stash plate/license/photo flag for demo (backend doesn't model these)
       const noteBits = [];
       if (motoristMode === "new") {
-        if (newMotorist.plate.trim())
-          noteBits.push(`Plate: ${newMotorist.plate.trim()}`);
         if (newMotorist.license.trim())
           noteBits.push(`License: ${newMotorist.license.trim()}`);
       }
@@ -996,7 +976,7 @@ export default function IssueViolation({ onSuccess }) {
     setMotoristMode("search");
     setQuery("");
     setSelectedMotorist(null);
-    setNewMotorist({ name: "", plate: "", license: "" });
+    setNewMotorist({ name: "", license: "" });
     setSelectedTypes([]);
     setTypeQuery("");
     setNotes("");
