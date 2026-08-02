@@ -127,7 +127,7 @@ function MotoristStep({
         <div className="iv-search-wrap" ref={wrapRef}>
           <input
             className="form-input iv-input-lg"
-            placeholder="Search by name..."
+            placeholder="Search by name or license no..."
             value={query}
             onChange={(e) => {
               setQuery(e.target.value);
@@ -168,9 +168,14 @@ function MotoristStep({
                     <div className="iv-suggest-body">
                       <div className="iv-suggest-name">{m.name}</div>
                       <div className="iv-suggest-meta">
-                        {m.count
-                          ? `${m.count} prior violation${m.count === 1 ? "" : "s"}`
-                          : "On record"}
+                        {[
+                          m.license ? `License ${m.license}` : "No license",
+                          m.count
+                            ? `${m.count} prior violation${m.count === 1 ? "" : "s"}`
+                            : "No previous violations",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </div>
                     </div>
                     {selectedMotorist?.name === m.name && (
@@ -189,9 +194,16 @@ function MotoristStep({
               <div className="iv-selected-body">
                 <div className="iv-selected-name">{selectedMotorist.name}</div>
                 <div className="iv-selected-meta">
-                  {selectedMotorist.count
-                    ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
-                    : "On record"}
+                  {[
+                    selectedMotorist.license
+                      ? `License ${selectedMotorist.license}`
+                      : null,
+                    selectedMotorist.count
+                      ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
+                      : "On record",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </div>
               </div>
               <button
@@ -758,10 +770,12 @@ export default function IssueViolation({ onSuccess }) {
           const e = map.get(key.toLowerCase()) || {
             id: v.motorist_id || null,
             name: key,
+            license: null,
             count: 0,
           };
           e.count++;
           if (!e.id && v.motorist_id) e.id = v.motorist_id;
+          if (!e.license && v.license_no) e.license = v.license_no;
           map.set(key.toLowerCase(), e);
         });
         setKnownMotorists([...map.values()].sort((a, b) => b.count - a.count));
@@ -780,7 +794,11 @@ export default function IssueViolation({ onSuccess }) {
     const q = query.trim().toLowerCase();
     if (!q) return knownMotorists.slice(0, 6);
     return knownMotorists
-      .filter((m) => m.name.toLowerCase().includes(q))
+      .filter(
+        (m) =>
+          m.name.toLowerCase().includes(q) ||
+          (m.license || "").toLowerCase().includes(q),
+      )
       .slice(0, 8);
   }, [query, knownMotorists]);
 
@@ -792,12 +810,19 @@ export default function IssueViolation({ onSuccess }) {
 
   const motoristResolved = useMemo(() => {
     if (motoristMode === "search" && selectedMotorist) {
+      const bits = [];
+      if (selectedMotorist.license)
+        bits.push(`License ${selectedMotorist.license}`);
+      bits.push(
+        selectedMotorist.count
+          ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
+          : "On record",
+      );
       return {
         name: selectedMotorist.name,
         id: selectedMotorist.id || null,
-        meta: selectedMotorist.count
-          ? `${selectedMotorist.count} prior violation${selectedMotorist.count === 1 ? "" : "s"}`
-          : "On record",
+        license: selectedMotorist.license || null,
+        meta: bits.join(" · "),
       };
     }
     if (motoristMode === "new" && newMotorist.name.trim()) {
@@ -809,6 +834,7 @@ export default function IssueViolation({ onSuccess }) {
       return {
         name: newMotorist.name.trim(),
         id: null,
+        license: newMotorist.license.trim() || null,
         meta: bits.join(" · ") || "New motorist",
       };
     }
@@ -944,6 +970,7 @@ export default function IssueViolation({ onSuccess }) {
       const result = await createViolation({
         motorist_name: motoristResolved.name,
         motorist_id: motoristResolved.id,
+        license_no: motoristResolved.license,
         violation_type: selectedTypes.map((t) => t.name).join(", "),
         notes: noteBits.join(" · "),
         latitude: gps.lat,

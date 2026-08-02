@@ -79,7 +79,16 @@ END $$;
 -- ── Tickets ──────────────────────────────────────────────────
 -- Migrate legacy table/column names in place for existing deployments
 ALTER TABLE IF EXISTS violations RENAME TO tickets;
-ALTER TABLE IF EXISTS payments RENAME COLUMN violation_id TO ticket_id;
+
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'payments' AND column_name = 'violation_id'
+  ) THEN
+    ALTER TABLE payments RENAME COLUMN violation_id TO ticket_id;
+  END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS tickets (
     id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -88,6 +97,7 @@ CREATE TABLE IF NOT EXISTS tickets (
                     ),
     motorist_id     UUID         REFERENCES users(id) ON DELETE SET NULL,
     motorist_name   VARCHAR(150) NOT NULL,
+    license_no      VARCHAR(30),
     enforcer_id     UUID         REFERENCES users(id) ON DELETE SET NULL,
     enforcer_name   VARCHAR(150) NOT NULL,
     violation_type  VARCHAR(255),
@@ -109,12 +119,14 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS enforcer_id  UUID REFERENCES users(
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_deleted   BOOLEAN DEFAULT FALSE;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS license_no   VARCHAR(30);
 
 CREATE INDEX IF NOT EXISTS idx_tickets_motorist  ON tickets(motorist_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_enforcer  ON tickets(enforcer_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_status    ON tickets(status);
 CREATE INDEX IF NOT EXISTS idx_tickets_date      ON tickets(date_issued);
 CREATE INDEX IF NOT EXISTS idx_tickets_ticket_no ON tickets(ticket_no);
+CREATE INDEX IF NOT EXISTS idx_tickets_license   ON tickets(license_no);
 
 -- Backfill ticket_no for any existing rows that don't have one
 UPDATE tickets

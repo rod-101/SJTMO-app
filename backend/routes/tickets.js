@@ -47,6 +47,7 @@ router.post("/", async (req, res) => {
   const {
     motorist_name,
     motorist_id,
+    license_no,
     violation_type,
     notes,
     latitude,
@@ -77,12 +78,13 @@ router.post("/", async (req, res) => {
   try {
     const result = await pool.query(
       `INSERT INTO tickets
-         (motorist_name, motorist_id, violation_type, notes, latitude, longitude, enforcer_name, enforcer_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         (motorist_name, motorist_id, license_no, violation_type, notes, latitude, longitude, enforcer_name, enforcer_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         motorist_name,
         motorist_id || null,
+        license_no || null,
         violation_type,
         notes || "",
         latitude || null,
