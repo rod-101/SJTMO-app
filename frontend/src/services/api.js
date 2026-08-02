@@ -59,7 +59,8 @@ export const getEnforcerViolations = (enforcerId) =>
     headers: authHeadersOnly(),
   }).then(handleResponse);
 
-export const createViolation = (data) =>
+// Upserts the motorist and creates the ticket atomically in one request.
+export const issueViolation = (data) =>
   fetch(`${BASE_URL}/tickets`, {
     method: "POST",
     headers: authHeaders(),

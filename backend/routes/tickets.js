@@ -42,12 +42,16 @@ router.get("/", async (req, res) => {
   }
 });
 
-// POST /tickets - issue a new ticket
+// POST /tickets - upsert the motorist and issue a new ticket in one transaction
 router.post("/", async (req, res) => {
   const {
-    motorist_name,
     motorist_id,
+    first_name,
+    last_name,
     license_no,
+    birthday,
+    address,
+    contact_no,
     violation_type,
     notes,
     latitude,
@@ -56,9 +60,9 @@ router.post("/", async (req, res) => {
     enforcer_id,
   } = req.body;
 
-  if (!motorist_name || !violation_type || !enforcer_name) {
+  if (!first_name || !last_name || !violation_type || !enforcer_name) {
     return res.status(400).json({
-      error: "motorist_name, violation_type, and enforcer_name are required",
+      error: "first_name, last_name, violation_type, and enforcer_name are required",
     });
   }
 
@@ -75,16 +79,50 @@ router.post("/", async (req, res) => {
     }
   }
 
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
+    await client.query("BEGIN");
+
+    const motoristArgs = [
+      first_name.trim(),
+      last_name.trim(),
+      license_no || null,
+      birthday || null,
+      address || null,
+      contact_no || null,
+    ];
+
+    const motoristResult = motorist_id
+      ? await client.query(
+          `UPDATE motorists SET
+            first_name = $1, last_name = $2, license_no = $3,
+            birthday = $4, address = $5, contact_no = $6
+           WHERE id = $7 RETURNING *`,
+          [...motoristArgs, motorist_id],
+        )
+      : await client.query(
+          `INSERT INTO motorists (first_name, last_name, license_no, birthday, address, contact_no)
+           VALUES ($1, $2, $3, $4, $5, $6)
+           RETURNING *`,
+          motoristArgs,
+        );
+
+    if (motoristResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Motorist not found" });
+    }
+    const motorist = motoristResult.rows[0];
+    const motorist_name = `${motorist.first_name} ${motorist.last_name}`;
+
+    const result = await client.query(
       `INSERT INTO tickets
          (motorist_name, motorist_id, license_no, violation_type, notes, latitude, longitude, enforcer_name, enforcer_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING *`,
       [
         motorist_name,
-        motorist_id || null,
-        license_no || null,
+        motorist.id,
+        motorist.license_no || null,
         violation_type,
         notes || "",
         latitude || null,
@@ -94,7 +132,7 @@ router.post("/", async (req, res) => {
       ],
     );
 
-    await pool.query(
+    await client.query(
       `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
        VALUES ($1, $2, 'TICKET_ISSUED', 'tickets', $3, $4)`,
       [
@@ -105,10 +143,14 @@ router.post("/", async (req, res) => {
       ],
     );
 
-    res.status(201).json(result.rows[0]);
+    await client.query("COMMIT");
+    res.status(201).json({ motorist, ticket: result.rows[0] });
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error("Create ticket error:", err);
     res.status(500).json({ error: "Server error" });
+  } finally {
+    client.release();
   }
 });
 

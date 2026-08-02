@@ -5,10 +5,9 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import {
-  createViolation,
+  issueViolation,
   getViolationTypes,
   searchMotorists,
-  saveMotorist,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -934,24 +933,18 @@ export default function IssueViolation({ onSuccess }) {
     setSubmitting(true);
     setError("");
     try {
-      const motorist = await saveMotorist({
-        id: motoristForm.id,
+      const noteBits = [];
+      if (photoTag) noteBits.push("[Photo evidence attached]");
+      if (notes.trim()) noteBits.push(notes.trim());
+
+      const { ticket } = await issueViolation({
+        motorist_id: motoristForm.id,
         first_name: motoristForm.first_name.trim(),
         last_name: motoristForm.last_name.trim(),
         license_no: motoristForm.license_no.trim() || null,
         birthday: motoristForm.birthday || null,
         address: motoristForm.address.trim() || null,
         contact_no: motoristForm.contact_no.trim() || null,
-      });
-
-      const noteBits = [];
-      if (photoTag) noteBits.push("[Photo evidence attached]");
-      if (notes.trim()) noteBits.push(notes.trim());
-
-      const result = await createViolation({
-        motorist_name: motoristResolved.name,
-        motorist_id: motorist.id,
-        license_no: motorist.license_no,
         violation_type: selectedTypes.map((t) => t.name).join(", "),
         notes: noteBits.join(" · "),
         latitude: gps.lat,
@@ -961,7 +954,7 @@ export default function IssueViolation({ onSuccess }) {
       });
 
       setSuccess({
-        ticket_no: result?.ticket_no || result?.id?.slice?.(0, 8) || "—",
+        ticket_no: ticket?.ticket_no || ticket?.id?.slice?.(0, 8) || "—",
         motorist_name: motoristResolved.name,
         total: totalFine,
       });
