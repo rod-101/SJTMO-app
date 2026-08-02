@@ -105,7 +105,21 @@ function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristF
   };
 
   const field = (key) => (e) =>
-    setMotoristForm({ ...motoristForm, [key]: e.target.value });
+    setMotoristForm({ ...motoristForm, id: null, [key]: e.target.value });
+
+  const clearSelection = () => {
+    setMotoristForm({
+      id: null,
+      first_name: "",
+      last_name: "",
+      license_no: "",
+      birthday: "",
+      address: "",
+      contact_no: "",
+    });
+    setQuery("");
+    setShowSuggest(false);
+  };
 
   return (
     <div className="iv-panel">
@@ -127,6 +141,16 @@ function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristF
           onFocus={() => setShowSuggest(true)}
           autoFocus
         />
+        {motoristForm.id && (
+          <button
+            type="button"
+            className="iv-clear-selection"
+            onClick={clearSelection}
+            title="Clear selected motorist and start a new one"
+          >
+            ✕ Clear
+          </button>
+        )}
         {showSuggest && query.trim().length > 0 && (
           <div className="iv-suggest">
             {suggestions.length === 0 ? (
@@ -168,6 +192,24 @@ function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristF
           </div>
         )}
       </div>
+
+      {motoristForm.id ? (
+        <div className="iv-motorist-status iv-motorist-status-existing">
+          ✅ Using the saved info for{" "}
+          <strong>
+            {motoristForm.first_name} {motoristForm.last_name}
+          </strong>
+          . This violation will be added to their existing record.
+        </div>
+      ) : motoristForm.first_name.trim() || motoristForm.last_name.trim() ? (
+        <div className="iv-motorist-status iv-motorist-status-new">
+          🆕 This will be saved as a <strong>new</strong> motorist named{" "}
+          <strong>
+            {motoristForm.first_name} {motoristForm.last_name}
+          </strong>
+          .
+        </div>
+      ) : null}
 
       <div className="iv-new-form">
         <div className="iv-manual-row">

@@ -3464,6 +3464,38 @@ textarea.iv-input-lg {
 .iv-search-wrap {
   position: relative;
 }
+.iv-clear-selection {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-muted, #888);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.iv-clear-selection:hover {
+  color: var(--danger, #d32f2f);
+}
+.iv-motorist-status {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.iv-motorist-status-existing {
+  background: rgba(46, 160, 67, 0.12);
+  border: 1px solid rgba(46, 160, 67, 0.35);
+  color: var(--text, #1a1a1a);
+}
+.iv-motorist-status-new {
+  background: rgba(230, 162, 0, 0.12);
+  border: 1px solid rgba(230, 162, 0, 0.35);
+  color: var(--text, #1a1a1a);
+}
 .iv-suggest {
   position: absolute;
   top: calc(100% + 6px);
