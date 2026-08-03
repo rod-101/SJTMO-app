@@ -59,6 +59,9 @@ const inSJBounds = (lat, lng) =>
   lng >= SJ_BOUNDS.minLng &&
   lng <= SJ_BOUNDS.maxLng;
 
+const normName = (first, last) =>
+  `${first} ${last}`.trim().toLowerCase().replace(/\s+/g, " ");
+
 // ─── Stepper ──────────────────────────────────────────────────────────────────
 function Stepper({ current, onJump, canJump }) {
   const idx = STEPS.findIndex((s) => s.key === current);
@@ -90,7 +93,16 @@ function Stepper({ current, onJump, canJump }) {
 }
 
 // ─── Motorist Step ────────────────────────────────────────────────────────────
-function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristForm }) {
+function MotoristStep({
+  query,
+  setQuery,
+  suggestions,
+  motoristForm,
+  setMotoristForm,
+  nameCollision,
+  confirmedNew,
+  onConfirmNew,
+}) {
   const [showSuggest, setShowSuggest] = useState(false);
   const wrapRef = useRef(null);
 
@@ -221,6 +233,30 @@ function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristF
             {motoristForm.first_name} {motoristForm.last_name}
           </strong>
           .
+          {nameCollision && (
+            <div className="iv-motorist-collision">
+              ⚠ A motorist named{" "}
+              <strong>
+                {motoristForm.first_name} {motoristForm.last_name}
+              </strong>{" "}
+              is already on record
+              {nameCollision.license_no
+                ? ` (License ${nameCollision.license_no})`
+                : ""}
+              . Select them above if this is the same person, to avoid creating
+              a duplicate record.
+              <label className="iv-collision-confirm">
+                <br />
+                <input
+                  type="checkbox"
+                  checked={confirmedNew}
+                  onChange={(e) => onConfirmNew(e.target.checked)}
+                />
+                This is a different person with the same name — create a new
+                record.
+              </label>
+            </div>
+          )}
         </div>
       ) : null}
 
@@ -297,7 +333,13 @@ function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristF
 }
 
 // ─── Vehicle Step ─────────────────────────────────────────────────────────────
-function VehicleStep({ query, setQuery, suggestions, vehicleForm, setVehicleForm }) {
+function VehicleStep({
+  query,
+  setQuery,
+  suggestions,
+  vehicleForm,
+  setVehicleForm,
+}) {
   const [showSuggest, setShowSuggest] = useState(false);
   const wrapRef = useRef(null);
 
@@ -360,8 +402,8 @@ function VehicleStep({ query, setQuery, suggestions, vehicleForm, setVehicleForm
     <div className="iv-panel">
       <div className="iv-panel-title">Identify the vehicle</div>
       <div className="iv-panel-hint">
-        Search by plate number — matches auto-fill the form below, which you
-        can edit before issuing.
+        Search by plate number — matches auto-fill the form below, which you can
+        edit before issuing.
       </div>
 
       <div className="iv-search-wrap" ref={wrapRef}>
@@ -432,7 +474,9 @@ function VehicleStep({ query, setQuery, suggestions, vehicleForm, setVehicleForm
       {vehicleForm.id ? (
         <div className="iv-motorist-status iv-motorist-status-existing">
           ✅ Using the saved info for plate{" "}
-          <strong>{vehicleForm.no_plate ? "NO PLATE" : vehicleForm.plate_no}</strong>
+          <strong>
+            {vehicleForm.no_plate ? "NO PLATE" : vehicleForm.plate_no}
+          </strong>
           . This violation will be added to its existing record.
         </div>
       ) : vehicleForm.plate_no.trim() || vehicleForm.no_plate ? (
@@ -450,7 +494,9 @@ function VehicleStep({ query, setQuery, suggestions, vehicleForm, setVehicleForm
 
       <div className="iv-new-form">
         <div className="form-group">
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <label
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          >
             <input
               type="checkbox"
               checked={vehicleForm.no_plate}
@@ -458,6 +504,17 @@ function VehicleStep({ query, setQuery, suggestions, vehicleForm, setVehicleForm
             />
             No plate / conduction sticker
           </label>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Plate Number *</label>
+          <input
+            className="form-input iv-input-lg"
+            placeholder="ABC 1234"
+            value={vehicleForm.plate_no}
+            onChange={field("plate_no")}
+            disabled={vehicleForm.no_plate}
+            required={!vehicleForm.no_plate}
+          />
         </div>
         <div className="iv-manual-row">
           <div className="form-group">
@@ -524,7 +581,9 @@ function VehicleStep({ query, setQuery, suggestions, vehicleForm, setVehicleForm
           />
         </div>
         <div className="form-group">
-          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <label
+            style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+          >
             <input
               type="checkbox"
               checked={vehicleForm.or_cr_presented}
@@ -1014,6 +1073,7 @@ export default function IssueViolation({ onSuccess }) {
     address: "",
     contact_no: "",
   });
+  const [confirmedNewMotorist, setConfirmedNewMotorist] = useState(false);
 
   // Vehicle
   const [vQuery, setVQuery] = useState("");
@@ -1059,7 +1119,6 @@ export default function IssueViolation({ onSuccess }) {
           { id: 6, name: "Obstruction", fine: 1000 },
         ]),
       );
-
   }, []);
 
   // ── Motorist search (debounced) ─────────────────────────────────────────
@@ -1076,6 +1135,11 @@ export default function IssueViolation({ onSuccess }) {
     }, 300);
     return () => clearTimeout(handle);
   }, [query]);
+
+  // Any name edit invalidates a previous "different person" confirmation
+  useEffect(() => {
+    setConfirmedNewMotorist(false);
+  }, [motoristForm.first_name, motoristForm.last_name]);
 
   // ── Vehicle search (debounced) ──────────────────────────────────────────
   useEffect(() => {
@@ -1116,18 +1180,39 @@ export default function IssueViolation({ onSuccess }) {
     return {
       name: `${firstName} ${lastName}`,
       license: motoristForm.license_no.trim() || null,
-      meta: bits.join(" · ") || (motoristForm.id ? "On record" : "New motorist"),
+      meta:
+        bits.join(" · ") || (motoristForm.id ? "On record" : "New motorist"),
     };
   }, [motoristForm]);
 
-  const motoristValid = !!motoristResolved;
+  // A suggestion whose name exactly matches what's typed, that the enforcer
+  // hasn't selected — the same-name-different-person case that produces
+  // silent duplicate motorist rows if left unconfirmed.
+  const nameCollision = useMemo(() => {
+    if (motoristForm.id) return null;
+    const typed = normName(motoristForm.first_name, motoristForm.last_name);
+    if (!typed) return null;
+    return (
+      suggestions.find((m) => normName(m.first_name, m.last_name) === typed) ||
+      null
+    );
+  }, [
+    suggestions,
+    motoristForm.id,
+    motoristForm.first_name,
+    motoristForm.last_name,
+  ]);
+
+  const motoristValid =
+    !!motoristResolved && (!nameCollision || confirmedNewMotorist);
 
   const vehicleResolved = useMemo(() => {
     if (!vehicleForm.vehicle_type) return null;
     if (!vehicleForm.no_plate && !vehicleForm.plate_no.trim()) return null;
     return {
       plate: vehicleForm.no_plate ? "NO PLATE" : vehicleForm.plate_no.trim(),
-      meta: [vehicleForm.make, vehicleForm.model].filter(Boolean).join(" ") || null,
+      meta:
+        [vehicleForm.make, vehicleForm.model].filter(Boolean).join(" ") || null,
     };
   }, [vehicleForm]);
 
@@ -1214,7 +1299,11 @@ export default function IssueViolation({ onSuccess }) {
     setError("");
     if (step === "motorist") {
       if (!motoristValid)
-        return setError("Identify the motorist before continuing.");
+        return setError(
+          nameCollision
+            ? "Select the matching motorist above, or confirm this is a different person."
+            : "Identify the motorist before continuing.",
+        );
       setStep("vehicle");
     } else if (step === "vehicle") {
       if (!vehicleValid)
@@ -1246,6 +1335,10 @@ export default function IssueViolation({ onSuccess }) {
 
   const handleSubmit = async () => {
     if (!motoristResolved) return setError("Motorist info missing.");
+    if (nameCollision && !confirmedNewMotorist)
+      return setError(
+        "Select the matching motorist above, or confirm this is a different person.",
+      );
     if (!vehicleResolved) return setError("Vehicle info missing.");
     if (selectedTypes.length === 0)
       return setError("Select at least one violation type.");
@@ -1265,8 +1358,11 @@ export default function IssueViolation({ onSuccess }) {
         birthday: motoristForm.birthday || null,
         address: motoristForm.address.trim() || null,
         contact_no: motoristForm.contact_no.trim() || null,
+        confirmed_new: confirmedNewMotorist,
         vehicle_id: vehicleForm.id,
-        plate_no: vehicleForm.no_plate ? null : vehicleForm.plate_no.trim() || null,
+        plate_no: vehicleForm.no_plate
+          ? null
+          : vehicleForm.plate_no.trim() || null,
         no_plate: vehicleForm.no_plate,
         vehicle_type: vehicleForm.vehicle_type,
         make: vehicleForm.make.trim() || null,
@@ -1307,6 +1403,7 @@ export default function IssueViolation({ onSuccess }) {
       address: "",
       contact_no: "",
     });
+    setConfirmedNewMotorist(false);
     setVQuery("");
     setVSuggestions([]);
     setVehicleForm({
@@ -1382,6 +1479,9 @@ export default function IssueViolation({ onSuccess }) {
             suggestions={suggestions}
             motoristForm={motoristForm}
             setMotoristForm={setMotoristForm}
+            nameCollision={nameCollision}
+            confirmedNew={confirmedNewMotorist}
+            onConfirmNew={setConfirmedNewMotorist}
           />
         )}
         {step === "vehicle" && (

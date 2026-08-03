@@ -67,6 +67,7 @@ router.post("/", async (req, res) => {
     longitude,
     enforcer_name,
     enforcer_id,
+    confirmed_new,
   } = req.body;
 
   if (!first_name || !last_name || !violation_type || !enforcer_name) {
@@ -96,6 +97,23 @@ router.post("/", async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
+
+    if (!motorist_id && !confirmed_new) {
+      const dup = await client.query(
+        `SELECT id, first_name, last_name, license_no FROM motorists
+         WHERE lower(first_name) = lower($1) AND lower(last_name) = lower($2)
+         LIMIT 5`,
+        [first_name.trim(), last_name.trim()],
+      );
+      if (dup.rows.length > 0) {
+        await client.query("ROLLBACK");
+        return res.status(409).json({
+          error:
+            "A motorist with this name already exists. Select them from the search results, or confirm this is a different person.",
+          candidates: dup.rows,
+        });
+      }
+    }
 
     const motoristArgs = [
       first_name.trim(),

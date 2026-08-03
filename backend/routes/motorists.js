@@ -26,11 +26,27 @@ router.get("/search", async (req, res) => {
 
 // POST /motorists - create a new motorist
 router.post("/", async (req, res) => {
-  const { first_name, last_name, license_no, birthday, address, contact_no } = req.body;
+  const { first_name, last_name, license_no, birthday, address, contact_no, confirmed_new } =
+    req.body;
   if (!first_name || !last_name) {
     return res.status(400).json({ error: "first_name and last_name are required" });
   }
   try {
+    if (!confirmed_new) {
+      const dup = await pool.query(
+        `SELECT id, first_name, last_name, license_no FROM motorists
+         WHERE lower(first_name) = lower($1) AND lower(last_name) = lower($2)
+         LIMIT 5`,
+        [first_name.trim(), last_name.trim()],
+      );
+      if (dup.rows.length > 0) {
+        return res.status(409).json({
+          error:
+            "A motorist with this name already exists. Select them from the search results, or confirm this is a different person.",
+          candidates: dup.rows,
+        });
+      }
+    }
     const result = await pool.query(
       `INSERT INTO motorists (first_name, last_name, license_no, birthday, address, contact_no)
        VALUES ($1, $2, $3, $4, $5, $6)
