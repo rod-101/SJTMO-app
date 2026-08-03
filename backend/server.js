@@ -30,6 +30,7 @@ const userRoutes = require("./routes/users");
 const ordinanceRoutes = require("./routes/ordinances");
 const paymentRoutes = require("./routes/payments");
 const motoristRoutes = require("./routes/motorists");
+const vehicleRoutes = require("./routes/vehicles");
 
 app.use("/login", authRoutes);
 app.use("/tickets", ticketRoutes);
@@ -37,6 +38,7 @@ app.use("/users", userRoutes);
 app.use("/ordinances", ordinanceRoutes);
 app.use("/payments", paymentRoutes);
 app.use("/motorists", motoristRoutes);
+app.use("/vehicles", vehicleRoutes);
 
 // Health check — useful for Render uptime monitoring
 app.get("/health", (req, res) => {
@@ -55,6 +57,38 @@ async function runStartupMigrations() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login    TIMESTAMPTZ`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT         DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_no   VARCHAR(20)`,
+    `CREATE TABLE IF NOT EXISTS vehicles (
+       id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+       motorist_id     UUID         REFERENCES motorists(id) ON DELETE SET NULL,
+       plate_no        VARCHAR(20),
+       no_plate        BOOLEAN      DEFAULT FALSE,
+       vehicle_type    VARCHAR(30)
+                       CHECK (vehicle_type IN ('motorcycle','car','suv','truck','jeepney','tricycle','van','bus','other')),
+       make            VARCHAR(100),
+       model           VARCHAR(100),
+       color           VARCHAR(50),
+       or_cr_no        VARCHAR(50),
+       or_cr_presented BOOLEAN      DEFAULT FALSE,
+       created_at      TIMESTAMPTZ  DEFAULT NOW(),
+       updated_at      TIMESTAMPTZ  DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_vehicles_plate    ON vehicles(plate_no)`,
+    `CREATE INDEX IF NOT EXISTS idx_vehicles_motorist ON vehicles(motorist_id)`,
+    `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS vehicle_id UUID`,
+    `DO $$ BEGIN
+       IF NOT EXISTS (
+         SELECT 1 FROM information_schema.table_constraints
+         WHERE table_name = 'tickets' AND constraint_name = 'tickets_vehicle_id_fkey'
+       ) THEN
+         ALTER TABLE tickets ADD CONSTRAINT tickets_vehicle_id_fkey
+           FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+       END IF;
+     END $$`,
+    `CREATE INDEX IF NOT EXISTS idx_tickets_vehicle ON tickets(vehicle_id)`,
+    `DROP TRIGGER IF EXISTS trg_vehicles_updated_at ON vehicles`,
+    `CREATE TRIGGER trg_vehicles_updated_at
+       BEFORE UPDATE ON vehicles
+       FOR EACH ROW EXECUTE FUNCTION set_updated_at()`,
     // Backfill status from legacy is_active where status is still null
     `UPDATE users SET status = CASE WHEN is_active = FALSE THEN 'inactive' ELSE 'active' END
      WHERE status IS NULL`,

@@ -166,6 +166,32 @@ ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_motorist_id_fkey;
 ALTER TABLE tickets ADD CONSTRAINT tickets_motorist_id_fkey
   FOREIGN KEY (motorist_id) REFERENCES motorists(id) ON DELETE SET NULL;
 
+-- ── Vehicles ─────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vehicles (
+    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    motorist_id     UUID         REFERENCES motorists(id) ON DELETE SET NULL,
+    plate_no        VARCHAR(20),
+    no_plate        BOOLEAN      DEFAULT FALSE,
+    vehicle_type    VARCHAR(30)
+                    CHECK (vehicle_type IN ('motorcycle','car','suv','truck','jeepney','tricycle','van','bus','other')),
+    make            VARCHAR(100),
+    model           VARCHAR(100),
+    color           VARCHAR(50),
+    or_cr_no        VARCHAR(50),
+    or_cr_presented BOOLEAN      DEFAULT FALSE,
+    created_at      TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_plate    ON vehicles(plate_no);
+CREATE INDEX IF NOT EXISTS idx_vehicles_motorist ON vehicles(motorist_id);
+
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS vehicle_id UUID;
+ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_vehicle_id_fkey;
+ALTER TABLE tickets ADD CONSTRAINT tickets_vehicle_id_fkey
+  FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_tickets_vehicle ON tickets(vehicle_id);
+
 -- ── Payments ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS payments (
     id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -230,6 +256,11 @@ CREATE TRIGGER trg_users_updated_at
 DROP TRIGGER IF EXISTS trg_motorists_updated_at ON motorists;
 CREATE TRIGGER trg_motorists_updated_at
     BEFORE UPDATE ON motorists
+    FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_vehicles_updated_at ON vehicles;
+CREATE TRIGGER trg_vehicles_updated_at
+    BEFORE UPDATE ON vehicles
     FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 -- ── Static seed data ─────────────────────────────────────────

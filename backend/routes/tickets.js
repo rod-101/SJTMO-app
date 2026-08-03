@@ -52,6 +52,15 @@ router.post("/", async (req, res) => {
     birthday,
     address,
     contact_no,
+    vehicle_id,
+    plate_no,
+    no_plate,
+    vehicle_type,
+    make,
+    model,
+    color,
+    or_cr_no,
+    or_cr_presented,
     violation_type,
     notes,
     latitude,
@@ -63,6 +72,11 @@ router.post("/", async (req, res) => {
   if (!first_name || !last_name || !violation_type || !enforcer_name) {
     return res.status(400).json({
       error: "first_name, last_name, violation_type, and enforcer_name are required",
+    });
+  }
+  if (!vehicle_type || (!no_plate && !plate_no)) {
+    return res.status(400).json({
+      error: "vehicle_type and (plate_no or no_plate) are required",
     });
   }
 
@@ -114,15 +128,49 @@ router.post("/", async (req, res) => {
     const motorist = motoristResult.rows[0];
     const motorist_name = `${motorist.first_name} ${motorist.last_name}`;
 
+    const vehicleArgs = [
+      motorist.id,
+      no_plate ? null : plate_no || null,
+      !!no_plate,
+      vehicle_type,
+      make || null,
+      model || null,
+      color || null,
+      or_cr_no || null,
+      !!or_cr_presented,
+    ];
+
+    const vehicleResult = vehicle_id
+      ? await client.query(
+          `UPDATE vehicles SET
+            motorist_id = $1, plate_no = $2, no_plate = $3, vehicle_type = $4,
+            make = $5, model = $6, color = $7, or_cr_no = $8, or_cr_presented = $9
+           WHERE id = $10 RETURNING *`,
+          [...vehicleArgs, vehicle_id],
+        )
+      : await client.query(
+          `INSERT INTO vehicles (motorist_id, plate_no, no_plate, vehicle_type, make, model, color, or_cr_no, or_cr_presented)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+           RETURNING *`,
+          vehicleArgs,
+        );
+
+    if (vehicleResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "Vehicle not found" });
+    }
+    const vehicle = vehicleResult.rows[0];
+
     const result = await client.query(
       `INSERT INTO tickets
-         (motorist_name, motorist_id, license_no, violation_type, notes, latitude, longitude, enforcer_name, enforcer_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         (motorist_name, motorist_id, license_no, vehicle_id, violation_type, notes, latitude, longitude, enforcer_name, enforcer_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         motorist_name,
         motorist.id,
         motorist.license_no || null,
+        vehicle.id,
         violation_type,
         notes || "",
         latitude || null,
@@ -139,12 +187,17 @@ router.post("/", async (req, res) => {
         enforcer_id || null,
         enforcer_name,
         result.rows[0].id,
-        JSON.stringify({ ticket_no: result.rows[0].ticket_no, motorist_name, violation_type }),
+        JSON.stringify({
+          ticket_no: result.rows[0].ticket_no,
+          motorist_name,
+          vehicle_plate: vehicle.no_plate ? "NO PLATE" : vehicle.plate_no,
+          violation_type,
+        }),
       ],
     );
 
     await client.query("COMMIT");
-    res.status(201).json({ motorist, ticket: result.rows[0] });
+    res.status(201).json({ motorist, vehicle, ticket: result.rows[0] });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Create ticket error:", err);

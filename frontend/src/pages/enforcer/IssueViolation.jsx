@@ -8,6 +8,7 @@ import {
   issueViolation,
   getViolationTypes,
   searchMotorists,
+  searchVehicles,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -30,8 +31,21 @@ const SJ_BOUNDS = {
 
 const STEPS = [
   { key: "motorist", label: "Motorist", icon: "👤" },
+  { key: "vehicle", label: "Vehicle", icon: "🏍️" },
   { key: "violation", label: "Violation", icon: "⚠️" },
   { key: "review", label: "Review", icon: "✅" },
+];
+
+const VEHICLE_TYPES = [
+  { value: "motorcycle", label: "Motorcycle" },
+  { value: "car", label: "Car / Sedan" },
+  { value: "suv", label: "SUV" },
+  { value: "truck", label: "Truck" },
+  { value: "jeepney", label: "Jeepney" },
+  { value: "tricycle", label: "Tricycle" },
+  { value: "van", label: "Van" },
+  { value: "bus", label: "Bus" },
+  { value: "other", label: "Other" },
 ];
 
 const peso = (n) =>
@@ -276,6 +290,254 @@ function MotoristStep({ query, setQuery, suggestions, motoristForm, setMotoristF
             value={motoristForm.contact_no}
             onChange={field("contact_no")}
           />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Vehicle Step ─────────────────────────────────────────────────────────────
+function VehicleStep({ query, setQuery, suggestions, vehicleForm, setVehicleForm }) {
+  const [showSuggest, setShowSuggest] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => {
+    const onClick = (e) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target))
+        setShowSuggest(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, []);
+
+  const selectVehicle = (v) => {
+    setVehicleForm({
+      id: v.id,
+      plate_no: v.plate_no || "",
+      no_plate: !!v.no_plate,
+      vehicle_type: v.vehicle_type || "",
+      make: v.make || "",
+      model: v.model || "",
+      color: v.color || "",
+      or_cr_no: v.or_cr_no || "",
+      or_cr_presented: !!v.or_cr_presented,
+    });
+    setQuery(v.no_plate ? "NO PLATE" : v.plate_no || "");
+    setShowSuggest(false);
+  };
+
+  const field = (key) => (e) =>
+    setVehicleForm({ ...vehicleForm, id: null, [key]: e.target.value });
+
+  const clearSelection = () => {
+    setVehicleForm({
+      id: null,
+      plate_no: "",
+      no_plate: false,
+      vehicle_type: "",
+      make: "",
+      model: "",
+      color: "",
+      or_cr_no: "",
+      or_cr_presented: false,
+    });
+    setQuery("");
+    setShowSuggest(false);
+  };
+
+  const toggleNoPlate = (e) => {
+    const checked = e.target.checked;
+    setVehicleForm({
+      ...vehicleForm,
+      id: null,
+      no_plate: checked,
+      plate_no: checked ? "" : vehicleForm.plate_no,
+    });
+    if (checked) setQuery("");
+  };
+
+  return (
+    <div className="iv-panel">
+      <div className="iv-panel-title">Identify the vehicle</div>
+      <div className="iv-panel-hint">
+        Search by plate number — matches auto-fill the form below, which you
+        can edit before issuing.
+      </div>
+
+      <div className="iv-search-wrap" ref={wrapRef}>
+        <input
+          className="form-input iv-input-lg"
+          placeholder="Search by plate number..."
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setShowSuggest(true);
+          }}
+          onFocus={() => setShowSuggest(true)}
+          disabled={vehicleForm.no_plate}
+          autoFocus
+        />
+        {vehicleForm.id && (
+          <button
+            type="button"
+            className="iv-clear-selection"
+            onClick={clearSelection}
+            title="Clear selected vehicle and start a new one"
+          >
+            ✕ Clear
+          </button>
+        )}
+        {showSuggest && query.trim().length > 0 && (
+          <div className="iv-suggest">
+            {suggestions.length === 0 ? (
+              <div className="iv-suggest-empty">
+                No match — fill in the form below to add a new vehicle.
+              </div>
+            ) : (
+              suggestions.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  className={`iv-suggest-item${vehicleForm.id === v.id ? " selected" : ""}`}
+                  onClick={() => selectVehicle(v)}
+                >
+                  <div className="iv-suggest-avatar">
+                    {(v.plate_no || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="iv-suggest-body">
+                    <div className="iv-suggest-name">
+                      {v.no_plate ? "No plate" : v.plate_no}
+                    </div>
+                    <div className="iv-suggest-meta">
+                      {[
+                        [v.make, v.model].filter(Boolean).join(" ") || null,
+                        Number(v.ticket_count) > 0
+                          ? `${v.ticket_count} prior violation${Number(v.ticket_count) === 1 ? "" : "s"}`
+                          : "No previous violations",
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </div>
+                  </div>
+                  {vehicleForm.id === v.id && (
+                    <span className="iv-suggest-check">✓</span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {vehicleForm.id ? (
+        <div className="iv-motorist-status iv-motorist-status-existing">
+          ✅ Using the saved info for plate{" "}
+          <strong>{vehicleForm.no_plate ? "NO PLATE" : vehicleForm.plate_no}</strong>
+          . This violation will be added to its existing record.
+        </div>
+      ) : vehicleForm.plate_no.trim() || vehicleForm.no_plate ? (
+        <div className="iv-motorist-status iv-motorist-status-new">
+          🆕 This will be saved as a <strong>new</strong> vehicle
+          {vehicleForm.plate_no.trim() && (
+            <>
+              {" "}
+              with plate <strong>{vehicleForm.plate_no.trim()}</strong>
+            </>
+          )}
+          .
+        </div>
+      ) : null}
+
+      <div className="iv-new-form">
+        <div className="form-group">
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input
+              type="checkbox"
+              checked={vehicleForm.no_plate}
+              onChange={toggleNoPlate}
+            />
+            No plate / conduction sticker
+          </label>
+        </div>
+        <div className="iv-manual-row">
+          <div className="form-group">
+            <label className="form-label">Vehicle Type *</label>
+            <select
+              className="form-input iv-input-lg"
+              value={vehicleForm.vehicle_type}
+              onChange={field("vehicle_type")}
+              required
+            >
+              <option value="">Select type…</option>
+              {VEHICLE_TYPES.map((t) => (
+                <option key={t.value} value={t.value}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              Color <span className="iv-optional">(optional)</span>
+            </label>
+            <input
+              className="form-input iv-input-lg"
+              placeholder="Red"
+              value={vehicleForm.color}
+              onChange={field("color")}
+            />
+          </div>
+        </div>
+        <div className="iv-manual-row">
+          <div className="form-group">
+            <label className="form-label">
+              Make <span className="iv-optional">(optional)</span>
+            </label>
+            <input
+              className="form-input iv-input-lg"
+              placeholder="Honda"
+              value={vehicleForm.make}
+              onChange={field("make")}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">
+              Model <span className="iv-optional">(optional)</span>
+            </label>
+            <input
+              className="form-input iv-input-lg"
+              placeholder="Click 125i"
+              value={vehicleForm.model}
+              onChange={field("model")}
+            />
+          </div>
+        </div>
+        <div className="form-group">
+          <label className="form-label">
+            OR/CR No. <span className="iv-optional">(optional)</span>
+          </label>
+          <input
+            className="form-input iv-input-lg"
+            placeholder="OR/CR reference number"
+            value={vehicleForm.or_cr_no}
+            onChange={field("or_cr_no")}
+          />
+        </div>
+        <div className="form-group">
+          <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <input
+              type="checkbox"
+              checked={vehicleForm.or_cr_presented}
+              onChange={(e) =>
+                setVehicleForm({
+                  ...vehicleForm,
+                  id: null,
+                  or_cr_presented: e.target.checked,
+                })
+              }
+            />
+            OR/CR presented on-site
+          </label>
         </div>
       </div>
     </div>
@@ -626,6 +888,8 @@ function ViolationStep({
 function ReviewStep({
   motoristLabel,
   motoristMeta,
+  vehicleLabel,
+  vehicleMeta,
   selectedTypes,
   totalFine,
   gps,
@@ -648,6 +912,14 @@ function ReviewStep({
             {motoristMeta && (
               <div className="iv-review-sub">{motoristMeta}</div>
             )}
+          </div>
+        </div>
+
+        <div className="iv-review-row">
+          <div className="iv-review-label">Vehicle</div>
+          <div className="iv-review-value">
+            <strong>{vehicleLabel}</strong>
+            {vehicleMeta && <div className="iv-review-sub">{vehicleMeta}</div>}
           </div>
         </div>
 
@@ -743,6 +1015,21 @@ export default function IssueViolation({ onSuccess }) {
     contact_no: "",
   });
 
+  // Vehicle
+  const [vQuery, setVQuery] = useState("");
+  const [vSuggestions, setVSuggestions] = useState([]);
+  const [vehicleForm, setVehicleForm] = useState({
+    id: null,
+    plate_no: "",
+    no_plate: false,
+    vehicle_type: "",
+    make: "",
+    model: "",
+    color: "",
+    or_cr_no: "",
+    or_cr_presented: false,
+  });
+
   // Violation details
   const [typeQuery, setTypeQuery] = useState("");
   const [selectedTypes, setSelectedTypes] = useState([]);
@@ -790,6 +1077,21 @@ export default function IssueViolation({ onSuccess }) {
     return () => clearTimeout(handle);
   }, [query]);
 
+  // ── Vehicle search (debounced) ──────────────────────────────────────────
+  useEffect(() => {
+    const q = vQuery.trim();
+    if (!q) {
+      setVSuggestions([]);
+      return;
+    }
+    const handle = setTimeout(() => {
+      searchVehicles(q)
+        .then(setVSuggestions)
+        .catch(() => setVSuggestions([]));
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [vQuery]);
+
   // ── Auto-capture GPS when entering violation step ──────────────────────
   useEffect(() => {
     if (step === "violation" && gps.status === "idle") captureGPS();
@@ -819,6 +1121,17 @@ export default function IssueViolation({ onSuccess }) {
   }, [motoristForm]);
 
   const motoristValid = !!motoristResolved;
+
+  const vehicleResolved = useMemo(() => {
+    if (!vehicleForm.vehicle_type) return null;
+    if (!vehicleForm.no_plate && !vehicleForm.plate_no.trim()) return null;
+    return {
+      plate: vehicleForm.no_plate ? "NO PLATE" : vehicleForm.plate_no.trim(),
+      meta: [vehicleForm.make, vehicleForm.model].filter(Boolean).join(" ") || null,
+    };
+  }, [vehicleForm]);
+
+  const vehicleValid = !!vehicleResolved;
   const violationValid = selectedTypes.length > 0 && gps.lat != null;
 
   // ── Handlers ───────────────────────────────────────────────────────────
@@ -902,6 +1215,10 @@ export default function IssueViolation({ onSuccess }) {
     if (step === "motorist") {
       if (!motoristValid)
         return setError("Identify the motorist before continuing.");
+      setStep("vehicle");
+    } else if (step === "vehicle") {
+      if (!vehicleValid)
+        return setError("Identify the vehicle before continuing.");
       setStep("violation");
     } else if (step === "violation") {
       if (selectedTypes.length === 0)
@@ -914,19 +1231,22 @@ export default function IssueViolation({ onSuccess }) {
 
   const goBack = () => {
     setError("");
-    if (step === "violation") setStep("motorist");
+    if (step === "vehicle") setStep("motorist");
+    else if (step === "violation") setStep("vehicle");
     else if (step === "review") setStep("violation");
   };
 
   const canJump = (i) => {
     if (i === 0) return true;
     if (i === 1) return motoristValid;
-    if (i === 2) return motoristValid && violationValid;
+    if (i === 2) return motoristValid && vehicleValid;
+    if (i === 3) return motoristValid && vehicleValid && violationValid;
     return false;
   };
 
   const handleSubmit = async () => {
     if (!motoristResolved) return setError("Motorist info missing.");
+    if (!vehicleResolved) return setError("Vehicle info missing.");
     if (selectedTypes.length === 0)
       return setError("Select at least one violation type.");
 
@@ -945,6 +1265,15 @@ export default function IssueViolation({ onSuccess }) {
         birthday: motoristForm.birthday || null,
         address: motoristForm.address.trim() || null,
         contact_no: motoristForm.contact_no.trim() || null,
+        vehicle_id: vehicleForm.id,
+        plate_no: vehicleForm.no_plate ? null : vehicleForm.plate_no.trim() || null,
+        no_plate: vehicleForm.no_plate,
+        vehicle_type: vehicleForm.vehicle_type,
+        make: vehicleForm.make.trim() || null,
+        model: vehicleForm.model.trim() || null,
+        color: vehicleForm.color.trim() || null,
+        or_cr_no: vehicleForm.or_cr_no.trim() || null,
+        or_cr_presented: vehicleForm.or_cr_presented,
         violation_type: selectedTypes.map((t) => t.name).join(", "),
         notes: noteBits.join(" · "),
         latitude: gps.lat,
@@ -977,6 +1306,19 @@ export default function IssueViolation({ onSuccess }) {
       birthday: "",
       address: "",
       contact_no: "",
+    });
+    setVQuery("");
+    setVSuggestions([]);
+    setVehicleForm({
+      id: null,
+      plate_no: "",
+      no_plate: false,
+      vehicle_type: "",
+      make: "",
+      model: "",
+      color: "",
+      or_cr_no: "",
+      or_cr_presented: false,
     });
     setSelectedTypes([]);
     setTypeQuery("");
@@ -1023,6 +1365,8 @@ export default function IssueViolation({ onSuccess }) {
   // ── Helpers for review ─────────────────────────────────────────────────
   const motoristLabel = motoristResolved?.name || "—";
   const motoristMeta = motoristResolved?.meta || null;
+  const vehicleLabel = vehicleResolved?.plate || "—";
+  const vehicleMeta = vehicleResolved?.meta || null;
 
   return (
     <div className="iv-wrap">
@@ -1038,6 +1382,15 @@ export default function IssueViolation({ onSuccess }) {
             suggestions={suggestions}
             motoristForm={motoristForm}
             setMotoristForm={setMotoristForm}
+          />
+        )}
+        {step === "vehicle" && (
+          <VehicleStep
+            query={vQuery}
+            setQuery={setVQuery}
+            suggestions={vSuggestions}
+            vehicleForm={vehicleForm}
+            setVehicleForm={setVehicleForm}
           />
         )}
         {step === "violation" && (
@@ -1066,6 +1419,8 @@ export default function IssueViolation({ onSuccess }) {
           <ReviewStep
             motoristLabel={motoristLabel}
             motoristMeta={motoristMeta}
+            vehicleLabel={vehicleLabel}
+            vehicleMeta={vehicleMeta}
             selectedTypes={selectedTypes}
             totalFine={totalFine}
             gps={gps}
@@ -1107,6 +1462,7 @@ export default function IssueViolation({ onSuccess }) {
             onClick={goNext}
             disabled={
               (step === "motorist" && !motoristValid) ||
+              (step === "vehicle" && !vehicleValid) ||
               (step === "violation" &&
                 (selectedTypes.length === 0 || gps.lat == null))
             }

@@ -112,6 +112,19 @@ export const saveMotorist = (data) =>
     body: JSON.stringify(data),
   }).then(handleResponse);
 
+// ── Vehicles ──────────────────────────────────────────────────────────────────
+export const searchVehicles = (q) =>
+  fetch(`${BASE_URL}/vehicles/search?q=${encodeURIComponent(q)}`, {
+    headers: authHeadersOnly(),
+  }).then(handleResponse);
+
+export const saveVehicle = (data) =>
+  fetch(`${BASE_URL}/vehicles${data.id ? `/${data.id}` : ""}`, {
+    method: data.id ? "PUT" : "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  }).then(handleResponse);
+
 // ── Payments ──────────────────────────────────────────────────────────────────
 export const recordPayment = (data) =>
   fetch(`${BASE_URL}/payments`, {
