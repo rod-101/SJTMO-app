@@ -1382,11 +1382,15 @@ export default function IssueViolation({ onSuccess }) {
 
       setSuccess({
         ticket_no: ticket?.ticket_no || ticket?.id?.slice?.(0, 8) || "—",
+        access_token: ticket?.access_token,
         date_issued: ticket?.date_issued || new Date().toISOString(),
         motorist_name: motoristResolved.name,
-        motorist_license: motorist?.license_no || motoristForm.license_no.trim() || null,
-        motorist_address: motorist?.address || motoristForm.address.trim() || null,
-        motorist_contact: motorist?.contact_no || motoristForm.contact_no.trim() || null,
+        motorist_license:
+          motorist?.license_no || motoristForm.license_no.trim() || null,
+        motorist_address:
+          motorist?.address || motoristForm.address.trim() || null,
+        motorist_contact:
+          motorist?.contact_no || motoristForm.contact_no.trim() || null,
         vehicle_plate: vehicle?.no_plate
           ? "NO PLATE"
           : vehicle?.plate_no || vehicleResolved?.plate || "—",
@@ -1451,9 +1455,7 @@ export default function IssueViolation({ onSuccess }) {
 
   // ── Success view ───────────────────────────────────────────────────────
   if (success && showReceipt) {
-    return (
-      <Receipt data={success} onBack={() => setShowReceipt(false)} />
-    );
+    return <Receipt data={success} onBack={() => setShowReceipt(false)} />;
   }
 
   if (success) {

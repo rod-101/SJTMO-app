@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import Navbar from "../../components/Navbar";
 import EnforcerBottomNav from "../../components/EnforcerBottomNav";
 import EnforcerDashboardHome from "./EnforcerDashboardHome";
@@ -123,6 +124,16 @@ export default function EnforcerDashboard() {
                     </div>
                     {v.notes && (
                       <div className="enf-recent-notes">{v.notes}</div>
+                    )}
+                    {v.access_token && (
+                      <Link
+                        className="btn btn-outline btn-sm enf-recent-receipt-link"
+                        to={`/receipt/${v.access_token}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        🧾 View Receipt
+                      </Link>
                     )}
                   </div>
                 ))}

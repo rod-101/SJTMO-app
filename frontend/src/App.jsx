@@ -8,6 +8,7 @@ import Login from "./pages/auth/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import EnforcerDashboard from "./pages/enforcer/EnforcerDashboard";
 import MotoristDashboard from "./pages/motorist/MotoristDashboard";
+import PublicReceipt from "./pages/PublicReceipt";
 
 const ProtectedRoute = ({ children, role }) => {
   const { user } = useAuth();
@@ -34,6 +35,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<HomeRoute />} />
+          <Route path="/receipt/:token" element={<PublicReceipt />} />
           <Route
             path="/admin/*"
             element={

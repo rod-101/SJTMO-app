@@ -74,6 +74,20 @@ export const updateViolationStatus = (id, status) =>
     body: JSON.stringify({ status }),
   }).then(handleResponse);
 
+// Public, unauthenticated receipt lookup — used by the QR code on printed receipts.
+export const getPublicReceipt = async (token) => {
+  const res = await fetch(`${BASE_URL}/tickets/lookup/${encodeURIComponent(token)}`);
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Server error (${res.status})`);
+  }
+  if (!res.ok) throw new Error(data.error || "Ticket not found");
+  return data;
+};
+
 export const getViolationTypes = () =>
   fetch(`${BASE_URL}/tickets/types`, {
     headers: authHeadersOnly(),

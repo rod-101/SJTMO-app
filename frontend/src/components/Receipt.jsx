@@ -18,19 +18,16 @@ const formatDateTime = (iso) => {
 export default function Receipt({ data, onBack }) {
   if (!data) return null;
 
-  const qrPayload = JSON.stringify({
-    ticket_no: data.ticket_no,
-    motorist: data.motorist_name,
-    total: data.total,
-    date: data.date_issued,
-  });
+  const qrPayload = `${window.location.origin}/receipt/${data.access_token}`;
 
   return (
     <div className="receipt-page">
       <div className="receipt-toolbar">
-        <button className="btn btn-outline" onClick={onBack}>
-          ← Back
-        </button>
+        {onBack && (
+          <button className="btn btn-outline" onClick={onBack}>
+            ← Back
+          </button>
+        )}
         <button className="btn btn-primary" onClick={() => window.print()}>
           🖨️ Print Receipt
         </button>

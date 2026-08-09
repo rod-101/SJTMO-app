@@ -343,4 +343,65 @@ router.post("/types", async (req, res) => {
   }
 });
 
+// GET /tickets/lookup/:token - public receipt lookup (no auth; used by QR code)
+// Keyed off the random access_token (not the sequential ticket_no) so tickets
+// can't be enumerated by guessing nearby ticket numbers.
+router.get("/lookup/:token", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT v.*, m.license_no AS m_license_no,
+              vh.plate_no, vh.no_plate, vh.vehicle_type, vh.make, vh.model, vh.color
+       FROM tickets v
+       LEFT JOIN motorists m ON m.id = v.motorist_id
+       LEFT JOIN vehicles vh ON vh.id = v.vehicle_id
+       WHERE v.access_token = $1 AND v.is_deleted = FALSE`,
+      [req.params.token],
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+    const t = result.rows[0];
+
+    const names = (t.violation_type || "")
+      .split(",")
+      .map((n) => n.trim())
+      .filter(Boolean);
+    let violation_types = [];
+    if (names.length > 0) {
+      const finesResult = await pool.query(
+        "SELECT name, fine FROM violation_types WHERE name = ANY($1::text[])",
+        [names],
+      );
+      const fineByName = new Map(finesResult.rows.map((r) => [r.name, Number(r.fine) || 0]));
+      violation_types = names.map((name) => ({
+        name,
+        fine: fineByName.get(name) || 0,
+      }));
+    }
+    const total = violation_types.reduce((sum, v) => sum + v.fine, 0);
+
+    res.json({
+      ticket_no: t.ticket_no,
+      date_issued: t.date_issued,
+      motorist_name: t.motorist_name,
+      motorist_license: t.m_license_no || t.license_no || null,
+      vehicle_plate: t.no_plate ? "NO PLATE" : t.plate_no || "—",
+      vehicle_type: t.vehicle_type || null,
+      vehicle_make: t.make || null,
+      vehicle_model: t.model || null,
+      vehicle_color: t.color || null,
+      violation_types,
+      total,
+      enforcer_name: t.enforcer_name,
+      notes: t.notes || null,
+    });
+  } catch (err) {
+    if (err.code === "22P02") {
+      return res.status(404).json({ error: "Ticket not found" });
+    }
+    console.error("Get ticket by access token error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 module.exports = router;

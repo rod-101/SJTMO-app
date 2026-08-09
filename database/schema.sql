@@ -120,6 +120,7 @@ ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_deleted   BOOLEAN DEFAULT FALSE;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS created_at   TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at   TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS license_no   VARCHAR(30);
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS access_token UUID DEFAULT gen_random_uuid();
 
 CREATE INDEX IF NOT EXISTS idx_tickets_motorist  ON tickets(motorist_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_enforcer  ON tickets(enforcer_id);
@@ -137,6 +138,11 @@ UPDATE tickets
 ALTER TABLE tickets ALTER COLUMN ticket_no SET DEFAULT (
   'TCT-' || lpad(nextval('ticket_seq')::text,5,'0')
 );
+
+-- Backfill access_token for any existing rows that don't have one, then enforce it
+UPDATE tickets SET access_token = gen_random_uuid() WHERE access_token IS NULL;
+ALTER TABLE tickets ALTER COLUMN access_token SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_access_token ON tickets(access_token);
 
 -- Expand status CHECK to include new values
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_status_check;
