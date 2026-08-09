@@ -1,0 +1,128 @@
+.receipt-page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.receipt-toolbar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.receipt-toolbar .btn {
+  flex: 1;
+}
+
+.receipt-card {
+  background: #fff;
+  border: 1px solid #e2e2e2;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  color: #1a1a1a;
+}
+
+.receipt-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 2px solid #1a1a1a;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
+}
+
+.receipt-org {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+}
+
+.receipt-subtitle {
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.receipt-ticket-no {
+  font-size: 1.05rem;
+  margin-bottom: 2px;
+}
+
+.receipt-date {
+  font-size: 0.85rem;
+  color: #555;
+  margin-bottom: 14px;
+}
+
+.receipt-section {
+  margin-bottom: 14px;
+}
+
+.receipt-section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #777;
+  margin-bottom: 6px;
+}
+
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.9rem;
+  padding: 3px 0;
+}
+
+.receipt-row span {
+  color: #555;
+}
+
+.receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 1.1rem;
+  border-top: 2px solid #1a1a1a;
+  padding-top: 10px;
+  margin-top: 6px;
+}
+
+.receipt-notes {
+  font-size: 0.85rem;
+  color: #555;
+  margin-top: 10px;
+}
+
+.receipt-footer {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px dashed #ccc;
+  font-size: 0.85rem;
+}
+
+.receipt-footer-note {
+  color: #777;
+  margin-top: 4px;
+  font-size: 0.78rem;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .receipt-print-area,
+  .receipt-print-area * {
+    visibility: visible;
+  }
+  .receipt-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .receipt-toolbar {
+    display: none;
+  }
+}

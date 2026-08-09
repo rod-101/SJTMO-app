@@ -11,6 +11,7 @@ import {
   searchVehicles,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import Receipt from "../../components/Receipt";
 import "../../App.css";
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -1103,6 +1104,7 @@ export default function IssueViolation({ onSuccess }) {
   // Submit
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null); // { ticket_no, motorist_name }
+  const [showReceipt, setShowReceipt] = useState(false);
   const [error, setError] = useState("");
 
   // ── Initial load ───────────────────────────────────────────────────────
@@ -1350,7 +1352,7 @@ export default function IssueViolation({ onSuccess }) {
       if (photoTag) noteBits.push("[Photo evidence attached]");
       if (notes.trim()) noteBits.push(notes.trim());
 
-      const { ticket } = await issueViolation({
+      const { ticket, motorist, vehicle } = await issueViolation({
         motorist_id: motoristForm.id,
         first_name: motoristForm.first_name.trim(),
         last_name: motoristForm.last_name.trim(),
@@ -1380,8 +1382,25 @@ export default function IssueViolation({ onSuccess }) {
 
       setSuccess({
         ticket_no: ticket?.ticket_no || ticket?.id?.slice?.(0, 8) || "—",
+        date_issued: ticket?.date_issued || new Date().toISOString(),
         motorist_name: motoristResolved.name,
+        motorist_license: motorist?.license_no || motoristForm.license_no.trim() || null,
+        motorist_address: motorist?.address || motoristForm.address.trim() || null,
+        motorist_contact: motorist?.contact_no || motoristForm.contact_no.trim() || null,
+        vehicle_plate: vehicle?.no_plate
+          ? "NO PLATE"
+          : vehicle?.plate_no || vehicleResolved?.plate || "—",
+        vehicle_type: vehicle?.vehicle_type || vehicleForm.vehicle_type || null,
+        vehicle_make: vehicle?.make || vehicleForm.make.trim() || null,
+        vehicle_model: vehicle?.model || vehicleForm.model.trim() || null,
+        vehicle_color: vehicle?.color || vehicleForm.color.trim() || null,
+        violation_types: selectedTypes.map((t) => ({
+          name: t.name,
+          fine: Number(t.fine) || 0,
+        })),
         total: totalFine,
+        enforcer_name: user.name,
+        notes: notes.trim() || null,
       });
     } catch (err) {
       setError(err.message || "Failed to submit violation.");
@@ -1426,10 +1445,17 @@ export default function IssueViolation({ onSuccess }) {
     setPhotoPreview(null);
     setPhotoTag(false);
     setSuccess(null);
+    setShowReceipt(false);
     setError("");
   };
 
   // ── Success view ───────────────────────────────────────────────────────
+  if (success && showReceipt) {
+    return (
+      <Receipt data={success} onBack={() => setShowReceipt(false)} />
+    );
+  }
+
   if (success) {
     return (
       <div className="iv-success-card">
@@ -1447,6 +1473,12 @@ export default function IssueViolation({ onSuccess }) {
         <div className="iv-success-actions">
           <button className="btn btn-outline btn-full" onClick={reset}>
             ＋ Issue Another
+          </button>
+          <button
+            className="btn btn-outline btn-full"
+            onClick={() => setShowReceipt(true)}
+          >
+            🧾 View Receipt
           </button>
           <button
             className="btn btn-primary btn-full"
