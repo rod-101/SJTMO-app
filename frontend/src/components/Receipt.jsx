@@ -1,5 +1,6 @@
 import React from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { getEvidencePhotoUrl } from "../services/api";
 import "./Receipt.css";
 
 const peso = (n) =>
@@ -123,6 +124,17 @@ export default function Receipt({ data, onBack }) {
             <span>Total Fine</span>
             <strong>{peso(data.total)}</strong>
           </div>
+
+          {data.has_photo && data.id && data.access_token && (
+            <div className="receipt-section">
+              <div className="receipt-section-title">Photo Evidence</div>
+              <img
+                className="receipt-evidence-photo"
+                src={getEvidencePhotoUrl(data.id, data.access_token)}
+                alt="Evidence"
+              />
+            </div>
+          )}
 
           {data.notes && (
             <div className="receipt-notes">Notes: {data.notes}</div>

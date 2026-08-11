@@ -9,6 +9,7 @@ import {
   getViolationTypes,
   searchMotorists,
   searchVehicles,
+  uploadEvidencePhoto,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import Receipt from "../../components/Receipt";
@@ -925,6 +926,9 @@ function ViolationStep({
             </button>
           </div>
         )}
+        {photoError && (
+          <div className="alert alert-error iv-alert">⚠ {photoError}</div>
+        )}
       </div>
 
       {/* ── Notes ── */}
@@ -1100,6 +1104,9 @@ export default function IssueViolation({ onSuccess }) {
   const [manualLng, setManualLng] = useState("");
   const [photoPreview, setPhotoPreview] = useState(null);
   const [photoTag, setPhotoTag] = useState(false); // attached flag
+  const [photoFile, setPhotoFile] = useState(null); // raw File, for upload
+  const [photoError, setPhotoError] = useState("");
+  const [photoWarning, setPhotoWarning] = useState("");
 
   // Submit
   const [submitting, setSubmitting] = useState(false);
@@ -1281,20 +1288,37 @@ export default function IssueViolation({ onSuccess }) {
     setManualLng("");
   };
 
+  const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
   const onPhotoChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setPhotoError("");
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("Please select an image file.");
+      return;
+    }
+    if (file.size > MAX_PHOTO_BYTES) {
+      setPhotoError("Photo must be smaller than 5 MB.");
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       setPhotoPreview(ev.target.result);
+      setPhotoFile(file);
       setPhotoTag(true);
+    };
+    reader.onerror = () => {
+      setPhotoError("Could not read that photo. Please try again.");
     };
     reader.readAsDataURL(file);
   };
 
   const clearPhoto = () => {
     setPhotoPreview(null);
+    setPhotoFile(null);
     setPhotoTag(false);
+    setPhotoError("");
   };
 
   const goNext = () => {
@@ -1347,11 +1371,8 @@ export default function IssueViolation({ onSuccess }) {
 
     setSubmitting(true);
     setError("");
+    setPhotoWarning("");
     try {
-      const noteBits = [];
-      if (photoTag) noteBits.push("[Photo evidence attached]");
-      if (notes.trim()) noteBits.push(notes.trim());
-
       const { ticket, motorist, vehicle } = await issueViolation({
         motorist_id: motoristForm.id,
         first_name: motoristForm.first_name.trim(),
@@ -1373,14 +1394,30 @@ export default function IssueViolation({ onSuccess }) {
         or_cr_no: vehicleForm.or_cr_no.trim() || null,
         or_cr_presented: vehicleForm.or_cr_presented,
         violation_type: selectedTypes.map((t) => t.name).join(", "),
-        notes: noteBits.join(" · "),
+        notes: notes.trim() || null,
         latitude: gps.lat,
         longitude: gps.lng,
         enforcer_name: user.name,
         enforcer_id: user.id,
       });
 
+      let photoUploaded = false;
+      if (photoFile && ticket?.id) {
+        try {
+          const fd = new FormData();
+          fd.append("photo", photoFile);
+          await uploadEvidencePhoto(ticket.id, fd);
+          photoUploaded = true;
+        } catch {
+          setPhotoWarning(
+            "Ticket issued, but the photo failed to upload. You can retry from the ticket details.",
+          );
+        }
+      }
+
       setSuccess({
+        id: ticket?.id,
+        has_photo: photoUploaded,
         ticket_no: ticket?.ticket_no || ticket?.id?.slice?.(0, 8) || "—",
         access_token: ticket?.access_token,
         date_issued: ticket?.date_issued || new Date().toISOString(),
@@ -1447,7 +1484,10 @@ export default function IssueViolation({ onSuccess }) {
     setManualLat("");
     setManualLng("");
     setPhotoPreview(null);
+    setPhotoFile(null);
     setPhotoTag(false);
+    setPhotoError("");
+    setPhotoWarning("");
     setSuccess(null);
     setShowReceipt(false);
     setError("");
@@ -1467,6 +1507,9 @@ export default function IssueViolation({ onSuccess }) {
           Ticket <strong>#{success.ticket_no}</strong> for{" "}
           <strong>{success.motorist_name}</strong>
         </div>
+        {photoWarning && (
+          <div className="alert alert-error iv-alert">⚠ {photoWarning}</div>
+        )}
         {success.total > 0 && (
           <div className="iv-success-total">
             Fine: <strong>{peso(success.total)}</strong>

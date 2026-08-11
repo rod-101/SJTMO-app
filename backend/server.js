@@ -85,6 +85,7 @@ async function runStartupMigrations() {
        END IF;
      END $$`,
     `CREATE INDEX IF NOT EXISTS idx_tickets_vehicle ON tickets(vehicle_id)`,
+    `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS evidence_filename VARCHAR(255)`,
     `DROP TRIGGER IF EXISTS trg_vehicles_updated_at ON vehicles`,
     `CREATE TRIGGER trg_vehicles_updated_at
        BEFORE UPDATE ON vehicles

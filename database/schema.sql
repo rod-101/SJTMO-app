@@ -198,6 +198,8 @@ ALTER TABLE tickets ADD CONSTRAINT tickets_vehicle_id_fkey
   FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_tickets_vehicle ON tickets(vehicle_id);
 
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS evidence_filename VARCHAR(255);
+
 -- ── Payments ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS payments (
     id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),

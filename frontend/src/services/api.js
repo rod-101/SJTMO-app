@@ -67,6 +67,16 @@ export const issueViolation = (data) =>
     body: JSON.stringify(data),
   }).then(handleResponse);
 
+export const uploadEvidencePhoto = (ticketId, formData) =>
+  fetch(`${BASE_URL}/tickets/${ticketId}/photo`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: formData,
+  }).then(handleResponse);
+
+export const getEvidencePhotoUrl = (ticketId, accessToken) =>
+  `${BASE_URL}/tickets/${ticketId}/photo?token=${encodeURIComponent(accessToken)}`;
+
 export const updateViolationStatus = (id, status) =>
   fetch(`${BASE_URL}/tickets/${id}/status`, {
     method: "PATCH",

@@ -1,8 +1,39 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+const { requireAuth, optionalAuth } = require("../middleware/auth");
 
 const VALID_STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed", "overdue"];
+
+// Evidence photos live in their own subdir, separate from the publicly-served
+// /uploads static mount used for ordinance PDFs — evidence is access-controlled.
+const evidenceDir = path.join(__dirname, "../uploads/evidence");
+if (!fs.existsSync(evidenceDir)) {
+  fs.mkdirSync(evidenceDir, { recursive: true });
+}
+
+const evidenceStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, evidenceDir),
+  filename: (req, file, cb) => {
+    const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, unique + path.extname(file.originalname));
+  },
+});
+
+const uploadEvidence = multer({
+  storage: evidenceStorage,
+  fileFilter: (req, file, cb) => {
+    if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPEG, PNG, or WebP images are allowed"));
+    }
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+});
 
 // GET /tickets
 router.get("/", async (req, res) => {
@@ -313,6 +344,66 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// POST /tickets/:id/photo - upload evidence photo for an existing ticket (staff only)
+router.post("/:id/photo", requireAuth, (req, res) => {
+  uploadEvidence.single("photo")(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ error: err.message });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: "Photo file is required" });
+    }
+    try {
+      const result = await pool.query(
+        `UPDATE tickets SET evidence_filename = $1 WHERE id = $2 AND is_deleted = FALSE RETURNING id, evidence_filename`,
+        [req.file.filename, req.params.id],
+      );
+      if (result.rows.length === 0) {
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      res.status(201).json({ success: true, filename: req.file.filename });
+    } catch (err2) {
+      fs.unlinkSync(req.file.path);
+      console.error("Upload evidence photo error:", err2);
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+});
+
+// GET /tickets/:id/photo - fetch evidence photo. Accessible to authenticated
+// staff, or anyone holding the ticket's access_token (same token used by the
+// public receipt link), so it must never be served via the open /uploads mount.
+router.get("/:id/photo", optionalAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT evidence_filename, access_token FROM tickets WHERE id = $1 AND is_deleted = FALSE",
+      [req.params.id],
+    );
+    if (result.rows.length === 0 || !result.rows[0].evidence_filename) {
+      return res.status(404).json({ error: "Photo not found" });
+    }
+    const { evidence_filename, access_token } = result.rows[0];
+
+    const tokenMatches = req.query.token && req.query.token === access_token;
+    if (!req.user && !tokenMatches) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const filePath = path.join(evidenceDir, evidence_filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "Photo file missing" });
+    }
+    res.sendFile(filePath);
+  } catch (err) {
+    if (err.code === "22P02") {
+      return res.status(404).json({ error: "Photo not found" });
+    }
+    console.error("Get evidence photo error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /tickets/types
 router.get("/types", async (req, res) => {
   try {
@@ -381,6 +472,7 @@ router.get("/lookup/:token", async (req, res) => {
     const total = violation_types.reduce((sum, v) => sum + v.fine, 0);
 
     res.json({
+      id: t.id,
       ticket_no: t.ticket_no,
       date_issued: t.date_issued,
       motorist_name: t.motorist_name,
@@ -394,6 +486,8 @@ router.get("/lookup/:token", async (req, res) => {
       total,
       enforcer_name: t.enforcer_name,
       notes: t.notes || null,
+      has_photo: !!t.evidence_filename,
+      access_token: t.access_token,
     });
   } catch (err) {
     if (err.code === "22P02") {
