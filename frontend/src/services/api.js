@@ -20,7 +20,7 @@ const handleResponse = async (res) => {
   if (res.status === 401) {
     localStorage.removeItem("sjtmo_user");
     localStorage.removeItem("sjtmo_token");
-    window.location.href = "/login";
+    window.dispatchEvent(new Event("auth:expired"));
     return;
   }
   const text = await res.text();

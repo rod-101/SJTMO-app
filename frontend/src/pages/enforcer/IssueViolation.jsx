@@ -739,6 +739,7 @@ function ViolationStep({
   photoPreview,
   onPhotoChange,
   clearPhoto,
+  photoError,
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -1590,6 +1591,7 @@ export default function IssueViolation({ onSuccess }) {
             photoPreview={photoPreview}
             onPhotoChange={onPhotoChange}
             clearPhoto={clearPhoto}
+            photoError={photoError}
           />
         )}
         {step === "review" && (

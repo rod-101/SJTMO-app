@@ -1,5 +1,5 @@
-import React from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import React, { useEffect } from "react";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 
@@ -17,6 +17,25 @@ const ProtectedRoute = ({ children, role }) => {
   return children;
 };
 
+// Listens for the "auth:expired" event dispatched by api.js on a 401 response
+// and navigates to /login client-side, so the browser never issues a full-page
+// GET /login that Vite would proxy straight to the backend (which has no such route).
+const AuthExpiredListener = () => {
+  const { logoutUser } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      logoutUser();
+      navigate("/login", { replace: true });
+    };
+    window.addEventListener("auth:expired", handleAuthExpired);
+    return () => window.removeEventListener("auth:expired", handleAuthExpired);
+  }, [logoutUser, navigate]);
+
+  return null;
+};
+
 // Show landing page for guests; redirect authenticated users to their dashboard.
 const HomeRoute = () => {
   const { user } = useAuth();
@@ -32,6 +51,7 @@ function App() {
     <ThemeProvider>
     <AuthProvider>
       <BrowserRouter>
+        <AuthExpiredListener />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<HomeRoute />} />
