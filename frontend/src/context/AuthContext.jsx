@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { logout as apiLogout } from "../services/api";
 
 const AuthContext = createContext(null);
 
@@ -19,6 +20,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logoutUser = () => {
+    apiLogout().catch(() => {});
     setUser(null);
     localStorage.removeItem("sjtmo_user");
     localStorage.removeItem("sjtmo_token");

@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const path = require("path");
 require("dotenv").config();
 
@@ -13,12 +14,13 @@ const allowedOrigins = process.env.FRONTEND_URL
   ? [process.env.FRONTEND_URL]
   : ["http://localhost:3000", "http://localhost:5173"];
 
-const corsOptions = { origin: allowedOrigins, optionsSuccessStatus: 200 };
+const corsOptions = { origin: allowedOrigins, credentials: true, optionsSuccessStatus: 200 };
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // handle preflight for all routes
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 app.use(express.json());
+app.use(cookieParser());
 
 // Serve uploaded ordinance files statically
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
@@ -74,6 +76,18 @@ async function runStartupMigrations() {
      )`,
     `CREATE INDEX IF NOT EXISTS idx_vehicles_plate    ON vehicles(plate_no)`,
     `CREATE INDEX IF NOT EXISTS idx_vehicles_motorist ON vehicles(motorist_id)`,
+    `CREATE TABLE IF NOT EXISTS refresh_tokens (
+       id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+       user_id       UUID         REFERENCES users(id) ON DELETE CASCADE,
+       token_hash    VARCHAR(255) NOT NULL,
+       user_agent    TEXT,
+       ip_address    VARCHAR(64),
+       expires_at    TIMESTAMPTZ  NOT NULL,
+       revoked_at    TIMESTAMPTZ,
+       last_used_at  TIMESTAMPTZ,
+       created_at    TIMESTAMPTZ  DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash)`,
     `ALTER TABLE tickets ADD COLUMN IF NOT EXISTS vehicle_id UUID`,
     `DO $$ BEGIN
        IF NOT EXISTS (

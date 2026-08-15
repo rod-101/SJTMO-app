@@ -1409,9 +1409,9 @@ export default function IssueViolation({ onSuccess }) {
           fd.append("photo", photoFile);
           await uploadEvidencePhoto(ticket.id, fd);
           photoUploaded = true;
-        } catch {
+        } catch (err) {
           setPhotoWarning(
-            "Ticket issued, but the photo failed to upload. You can retry from the ticket details.",
+            `Ticket issued, but the photo failed to upload (${err.message}). You can retry from the ticket details.`,
           );
         }
       }
