@@ -5,6 +5,8 @@ import {
   deleteViolation,
   getViolationTypes,
   addViolationType,
+  updateViolationType,
+  deleteViolationType,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -202,8 +204,67 @@ function EditModal({ violation, types, onClose, onSaved, toast }) {
   );
 }
 
-// ─── Add Violation Type Modal ─────────────────────────────────────────────────
-function AddTypeModal({ onClose, onAdded, toast }) {
+// ─── Violation Type Row (list / inline edit) ──────────────────────────────────
+function TypeRow({ type, onSaved, onDelete, toast }) {
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(type.name);
+  const [fine, setFine] = useState(type.fine ?? "");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const cancel = () => {
+    setEditing(false);
+    setName(type.name);
+    setFine(type.fine ?? "");
+    setErr("");
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    setErr("");
+    try {
+      await updateViolationType(type.id, name.trim(), fine);
+      toast.success("Violation type updated.");
+      setEditing(false);
+      onSaved();
+    } catch (e2) {
+      setErr(e2.message || "Failed to save changes.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <form onSubmit={save} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 0" }}>
+        <div style={{ flex: 2 }}>
+          <input className="form-input" value={name} onChange={(e) => setName(e.target.value)} autoFocus required />
+          {err && <div className="alert alert-error" style={{ marginTop: 6 }}>{err}</div>}
+        </div>
+        <input className="form-input" type="number" min="0" step="0.01" style={{ flex: 1 }}
+          value={fine} onChange={(e) => setFine(e.target.value)} />
+        <button className="btn btn-primary btn-sm" disabled={saving || !name.trim()}>
+          {saving ? "Saving…" : "Save"}
+        </button>
+        <button className="btn btn-outline btn-sm" type="button" onClick={cancel}>Cancel</button>
+      </form>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border, #e0e0e0)" }}>
+      <div style={{ flex: 2, fontWeight: 600 }}>{type.name}</div>
+      <div style={{ flex: 1, color: "var(--text-light)" }}>₱{Number(type.fine || 0).toFixed(2)}</div>
+      <button className="btn btn-outline btn-sm" onClick={() => setEditing(true)}>Edit</button>
+      <button className="btn btn-danger btn-sm" onClick={() => onDelete(type)}>Delete</button>
+    </div>
+  );
+}
+
+// ─── Manage Violation Types Modal ──────────────────────────────────────────────
+function TypeManagerModal({ types, onClose, onAdded, onSaved, onDelete, toast }) {
   const [name, setName] = useState("");
   const [fine, setFine] = useState("");
   const [saving, setSaving] = useState(false);
@@ -217,8 +278,8 @@ function AddTypeModal({ onClose, onAdded, toast }) {
     try {
       await addViolationType(name.trim(), fine);
       toast.success("Violation type added.");
+      setName(""); setFine("");
       onAdded();
-      onClose();
     } catch (e2) {
       setErr(e2.message || "Failed to add type.");
     } finally {
@@ -228,17 +289,29 @@ function AddTypeModal({ onClose, onAdded, toast }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <div className="modal-title">Add Violation Type</div>
+          <div className="modal-title">Manage Violation Types</div>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
+
+        <div style={{ maxHeight: 320, overflowY: "auto", marginBottom: 16 }}>
+          {types.length === 0 ? (
+            <div className="empty-state-text" style={{ padding: "12px 0" }}>No violation types yet.</div>
+          ) : (
+            types.map((t) => (
+              <TypeRow key={t.id} type={t} onSaved={onSaved} onDelete={onDelete} toast={toast} />
+            ))
+          )}
+        </div>
+
+        <div className="user-panel-section-title">Add New Type</div>
         {err && <div className="alert alert-error">{err}</div>}
         <form onSubmit={submit}>
           <div className="form-group">
             <label className="form-label">Violation Type Name</label>
             <input className="form-input" placeholder="e.g. Illegal U-Turn" value={name}
-              onChange={(e) => setName(e.target.value)} autoFocus required />
+              onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="form-group">
             <label className="form-label">Penalty Amount (₱)</label>
@@ -247,7 +320,7 @@ function AddTypeModal({ onClose, onAdded, toast }) {
               onChange={(e) => setFine(e.target.value)} />
           </div>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Cancel</button>
+            <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Close</button>
             <button className="btn btn-primary btn-sm" disabled={saving || !name.trim()}>
               {saving ? "Adding…" : "Add Type"}
             </button>
@@ -442,7 +515,7 @@ export default function TicketsTable({ violations, onRefresh }) {
 
   // Modals / panel
   const [editViolation, setEditViolation] = useState(null);
-  const [showAddType, setShowAddType] = useState(false);
+  const [showManageTypes, setShowManageTypes] = useState(false);
   const [detailsId, setDetailsId] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
@@ -659,9 +732,23 @@ export default function TicketsTable({ violations, onRefresh }) {
     setDateFrom(""); setDateTo("");
   };
 
-  const handleTypeAdded = () => {
+  const refreshTypes = () => {
     getViolationTypes().then(setViolationTypes).catch(() => {});
     onRefresh();
+  };
+
+  const handleDeleteType = (type) => {
+    setConfirmAction({
+      title: "Delete violation type?",
+      message: `Permanently delete "${type.name}"? Existing tickets already issued with this type keep their recorded name/fine.`,
+      confirmLabel: "Delete",
+      danger: true,
+      run: async () => {
+        await deleteViolationType(type.id);
+        toast.success(`"${type.name}" deleted.`);
+        refreshTypes();
+      },
+    });
   };
 
   const handleRefresh = async () => {
@@ -681,7 +768,7 @@ export default function TicketsTable({ violations, onRefresh }) {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-outline btn-sm" onClick={handleRefresh}>Refresh</button>
-          <button className="btn btn-primary btn-sm" onClick={() => setShowAddType(true)}>+ Add Violation Type</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setShowManageTypes(true)}>Manage Violation Types</button>
         </div>
       </div>
 
@@ -855,8 +942,15 @@ export default function TicketsTable({ violations, onRefresh }) {
           toast={toast}
         />
       )}
-      {showAddType && (
-        <AddTypeModal onClose={() => setShowAddType(false)} onAdded={handleTypeAdded} toast={toast} />
+      {showManageTypes && (
+        <TypeManagerModal
+          types={violationTypes}
+          onClose={() => setShowManageTypes(false)}
+          onAdded={refreshTypes}
+          onSaved={refreshTypes}
+          onDelete={handleDeleteType}
+          toast={toast}
+        />
       )}
       {confirmAction && (
         <ConfirmModal

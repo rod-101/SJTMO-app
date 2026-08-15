@@ -434,6 +434,41 @@ router.post("/types", async (req, res) => {
   }
 });
 
+// PUT /tickets/types/:id
+router.put("/types/:id", async (req, res) => {
+  const { name, fine } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: "Violation type name is required" });
+  }
+  try {
+    const result = await pool.query(
+      "UPDATE violation_types SET name = $1, fine = $2 WHERE id = $3 RETURNING *",
+      [name.trim(), fine || 0, req.params.id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Violation type not found" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    if (err.code === "23505") return res.status(409).json({ error: "Violation type already exists." });
+    console.error("Update violation type error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// DELETE /tickets/types/:id
+router.delete("/types/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM violation_types WHERE id = $1 RETURNING id",
+      [req.params.id],
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: "Violation type not found" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Delete violation type error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // GET /tickets/lookup/:token - public receipt lookup (no auth; used by QR code)
 // Keyed off the random access_token (not the sequential ticket_no) so tickets
 // can't be enumerated by guessing nearby ticket numbers.

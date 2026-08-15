@@ -156,6 +156,19 @@ export const addViolationType = (name, fine) =>
     body: JSON.stringify({ name, fine: Number(fine) || 0 }),
   });
 
+export const updateViolationType = (id, name, fine) =>
+  authedFetch(`${BASE_URL}/tickets/types/${id}`, {
+    method: "PUT",
+    headers: authHeaders(),
+    body: JSON.stringify({ name, fine: Number(fine) || 0 }),
+  });
+
+export const deleteViolationType = (id) =>
+  authedFetch(`${BASE_URL}/tickets/types/${id}`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+
 export const updateViolation = (id, data) =>
   authedFetch(`${BASE_URL}/tickets/${id}`, {
     method: "PUT",
