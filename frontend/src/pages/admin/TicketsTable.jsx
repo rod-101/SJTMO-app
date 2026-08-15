@@ -7,6 +7,7 @@ import {
   addViolationType,
   updateViolationType,
   deleteViolationType,
+  getEvidencePhotoUrl,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -385,6 +386,21 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
               ? <code style={{ fontSize: "0.7rem" }}>{v.enforcer_id.slice(0, 8)}…</code>
               : "—"} />
           </div>
+
+          <div className="user-panel-section-title">Evidence</div>
+          {v.evidence_filename ? (
+            <a href={getEvidencePhotoUrl(v.id, v.access_token)} target="_blank" rel="noopener noreferrer">
+              <img
+                src={getEvidencePhotoUrl(v.id, v.access_token)}
+                alt="Evidence"
+                style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginBottom: 14 }}
+              />
+            </a>
+          ) : (
+            <div className="empty-state" style={{ padding: "12px 0" }}>
+              <div className="empty-state-text">No evidence photo uploaded.</div>
+            </div>
+          )}
 
           <div className="user-panel-section-title">Payment</div>
           {hasPayment ? (
