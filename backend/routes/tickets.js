@@ -4,7 +4,7 @@ const pool = require("../db");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const { requireAuth, optionalAuth } = require("../middleware/auth");
+const { requireAuth, authorize, optionalAuth } = require("../middleware/auth");
 
 const VALID_STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed", "overdue"];
 
@@ -36,7 +36,7 @@ const uploadEvidence = multer({
 });
 
 // GET /tickets
-router.get("/", async (req, res) => {
+router.get("/", requireAuth, authorize("admin", "enforcer", "treasury"), async (req, res) => {
   const { motorist, motorist_id } = req.query;
   try {
     let query = `
@@ -74,7 +74,7 @@ router.get("/", async (req, res) => {
 });
 
 // POST /tickets - upsert the motorist and issue a new ticket in one transaction
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, authorize("admin", "enforcer"), async (req, res) => {
   const {
     motorist_id,
     first_name,
@@ -96,14 +96,14 @@ router.post("/", async (req, res) => {
     notes,
     latitude,
     longitude,
-    enforcer_name,
-    enforcer_id,
     confirmed_new,
   } = req.body;
+  const enforcer_name = req.user.name;
+  const enforcer_id = req.user.id;
 
-  if (!first_name || !last_name || !violation_type || !enforcer_name) {
+  if (!first_name || !last_name || !violation_type) {
     return res.status(400).json({
-      error: "first_name, last_name, violation_type, and enforcer_name are required",
+      error: "first_name, last_name, and violation_type are required",
     });
   }
   if (!vehicle_type || (!no_plate && !plate_no)) {
@@ -257,9 +257,11 @@ router.post("/", async (req, res) => {
 });
 
 // PATCH /tickets/:id/status - update ticket status
-router.patch("/:id/status", async (req, res) => {
+router.patch("/:id/status", requireAuth, authorize("admin", "treasury"), async (req, res) => {
   const { id } = req.params;
-  const { status, changed_by_id, changed_by_name } = req.body;
+  const { status } = req.body;
+  const changed_by_id = req.user.id;
+  const changed_by_name = req.user.name;
 
   if (!VALID_STATUSES.includes(status)) {
     return res.status(400).json({ error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}` });
@@ -295,7 +297,7 @@ router.patch("/:id/status", async (req, res) => {
 });
 
 // PUT /tickets/:id - full edit
-router.put("/:id", async (req, res) => {
+router.put("/:id", requireAuth, authorize("admin"), async (req, res) => {
   const { id } = req.params;
   const { motorist_name, violation_type, notes, status, enforcer_name } = req.body;
 
@@ -330,7 +332,7 @@ router.put("/:id", async (req, res) => {
 });
 
 // DELETE /tickets/:id - soft delete
-router.delete("/:id", async (req, res) => {
+router.delete("/:id", requireAuth, authorize("admin"), async (req, res) => {
   try {
     const result = await pool.query(
       "UPDATE tickets SET is_deleted = TRUE WHERE id = $1 RETURNING id",
@@ -405,7 +407,7 @@ router.get("/:id/photo", optionalAuth, async (req, res) => {
 });
 
 // GET /tickets/types
-router.get("/types", async (req, res) => {
+router.get("/types", requireAuth, async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM violation_types ORDER BY id");
     res.json(result.rows);
@@ -416,7 +418,7 @@ router.get("/types", async (req, res) => {
 });
 
 // POST /tickets/types
-router.post("/types", async (req, res) => {
+router.post("/types", requireAuth, authorize("admin"), async (req, res) => {
   const { name, fine } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Violation type name is required" });
@@ -435,7 +437,7 @@ router.post("/types", async (req, res) => {
 });
 
 // PUT /tickets/types/:id
-router.put("/types/:id", async (req, res) => {
+router.put("/types/:id", requireAuth, authorize("admin"), async (req, res) => {
   const { name, fine } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Violation type name is required" });
@@ -455,7 +457,7 @@ router.put("/types/:id", async (req, res) => {
 });
 
 // DELETE /tickets/types/:id
-router.delete("/types/:id", async (req, res) => {
+router.delete("/types/:id", requireAuth, authorize("admin"), async (req, res) => {
   try {
     const result = await pool.query(
       "DELETE FROM violation_types WHERE id = $1 RETURNING id",
