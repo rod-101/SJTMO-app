@@ -39,27 +39,39 @@ const uploadEvidence = multer({
 router.get("/", requireAuth, authorize("admin", "enforcer", "treasury"), async (req, res) => {
   const { motorist, motorist_id } = req.query;
   try {
-    let query = `
-      SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
+    const selectCols = `
+      SELECT v.*,
+        pay.payment_id, pay.receipt_no, pay.amount_paid, pay.paid_at, pay.receipt_filename,
+        COALESCE(fine.fine_total, 0) AS fine_total,
+        COALESCE(fine.fine_total, 0) - COALESCE(pay.amount_paid, 0) AS balance_due
       FROM tickets v
-      LEFT JOIN payments p ON p.ticket_id = v.id
+      LEFT JOIN LATERAL (
+        SELECT SUM(vt.fine) AS fine_total
+        FROM unnest(string_to_array(v.violation_type, ',')) AS names(n)
+        JOIN violation_types vt ON vt.name = trim(names.n)
+      ) fine ON true
+      LEFT JOIN LATERAL (
+        SELECT p.id AS payment_id, p.receipt_no, p.paid_at, p.receipt_filename,
+               SUM(p.amount_paid) AS amount_paid
+        FROM payments p
+        WHERE p.ticket_id = v.id
+        GROUP BY p.id, p.receipt_no, p.paid_at, p.receipt_filename
+        ORDER BY p.paid_at DESC
+        LIMIT 1
+      ) pay ON true`;
+
+    let query = `${selectCols}
       WHERE v.is_deleted = FALSE
       ORDER BY v.date_issued DESC`;
     let params = [];
 
     if (motorist_id) {
-      query = `
-        SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
-        FROM tickets v
-        LEFT JOIN payments p ON p.ticket_id = v.id
+      query = `${selectCols}
         WHERE v.motorist_id = $1 AND v.is_deleted = FALSE
         ORDER BY v.date_issued DESC`;
       params = [motorist_id];
     } else if (motorist) {
-      query = `
-        SELECT v.*, p.receipt_no, p.amount_paid, p.paid_at
-        FROM tickets v
-        LEFT JOIN payments p ON p.ticket_id = v.id
+      query = `${selectCols}
         WHERE LOWER(v.motorist_name) = LOWER($1) AND v.is_deleted = FALSE
         ORDER BY v.date_issued DESC`;
       params = [motorist];

@@ -213,6 +213,8 @@ CREATE TABLE IF NOT EXISTS payments (
     notes           TEXT
 );
 
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_filename VARCHAR(255);
+
 CREATE INDEX IF NOT EXISTS idx_payments_ticket ON payments(ticket_id);
 
 -- ── Ordinances ───────────────────────────────────────────────

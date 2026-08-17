@@ -221,6 +221,16 @@ export const getPaymentsForViolation = (violationId) =>
     headers: authHeadersOnly(),
   });
 
+export const uploadReceiptPhoto = (paymentId, formData) =>
+  authedFetch(`${BASE_URL}/payments/${paymentId}/photo`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: formData,
+  });
+
+export const getReceiptPhotoUrl = (paymentId, accessToken) =>
+  `${BASE_URL}/payments/${paymentId}/photo?token=${encodeURIComponent(accessToken)}`;
+
 // ── Ordinances ────────────────────────────────────────────────────────────────
 export const getOrdinances = () =>
   authedFetch(`${BASE_URL}/ordinances`, {

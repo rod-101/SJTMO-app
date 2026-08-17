@@ -8,6 +8,9 @@ import {
   updateViolationType,
   deleteViolationType,
   getEvidencePhotoUrl,
+  recordPayment,
+  uploadReceiptPhoto,
+  getReceiptPhotoUrl,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -198,6 +201,100 @@ function EditModal({ violation, types, onClose, onSaved, toast }) {
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary btn-sm" disabled={saving}>{saving ? "Saving…" : "Save Changes"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Record Payment Modal ──────────────────────────────────────────────────────
+function RecordPaymentModal({ violation, onClose, onSaved, toast }) {
+  const [form, setForm] = useState({
+    receipt_no: "",
+    amount_paid: "",
+    payment_method: "cash",
+    paid_at: new Date().toISOString().slice(0, 16),
+  });
+  const [photo, setPhoto] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setErr("");
+    try {
+      const payment = await recordPayment({
+        ticket_id: violation.id,
+        receipt_no: form.receipt_no.trim(),
+        amount_paid: form.amount_paid,
+        payment_method: form.payment_method,
+        paid_at: form.paid_at,
+      });
+      if (photo) {
+        const fd = new FormData();
+        fd.append("photo", photo);
+        await uploadReceiptPhoto(payment.id, fd);
+      }
+      toast.success("Payment recorded.");
+      onSaved();
+      onClose();
+    } catch (e2) {
+      setErr(e2.message || "Failed to record payment.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div className="modal-title">Record Payment</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 16 }}>
+          {violation.ticket_no} — {violation.motorist_name}
+        </div>
+        {err && <div className="alert alert-error">{err}</div>}
+        <form onSubmit={submit}>
+          <div className="form-group">
+            <label className="form-label">Receipt No. (OR#)</label>
+            <input className="form-input" value={form.receipt_no}
+              onChange={(e) => setForm({ ...form, receipt_no: e.target.value })} required autoFocus />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Amount Paid</label>
+            <input className="form-input" type="number" min="0.01" step="0.01"
+              value={form.amount_paid}
+              onChange={(e) => setForm({ ...form, amount_paid: e.target.value })} required />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Payment Method</label>
+            <select className="form-select" value={form.payment_method}
+              onChange={(e) => setForm({ ...form, payment_method: e.target.value })}>
+              <option value="cash">Cash</option>
+              <option value="gcash">GCash</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="others">Others</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Date Paid</label>
+            <input className="form-input" type="datetime-local" value={form.paid_at}
+              onChange={(e) => setForm({ ...form, paid_at: e.target.value })} />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Receipt Photo (optional)</label>
+            <input className="form-input" type="file" accept="image/*"
+              onChange={(e) => setPhoto(e.target.files?.[0] || null)} />
+          </div>
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary btn-sm" disabled={saving || !form.receipt_no.trim() || !form.amount_paid}>
+              {saving ? "Saving…" : "Record Payment"}
+            </button>
           </div>
         </form>
       </div>
@@ -403,12 +500,34 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
           )}
 
           <div className="user-panel-section-title">Payment</div>
+          <div className="user-panel-grid">
+            <Field label="Fine Amount" value={`₱${Number(v.fine_total ?? 0).toFixed(2)}`} />
+            <Field
+              label="Balance Due"
+              value={
+                <span style={{ color: Number(v.balance_due ?? 0) > 0 ? "var(--danger, #d33)" : "inherit" }}>
+                  ₱{Number(v.balance_due ?? 0).toFixed(2)}
+                </span>
+              }
+            />
+          </div>
           {hasPayment ? (
-            <div className="user-panel-grid">
-              <Field label="Receipt #" value={v.receipt_no || "—"} />
-              <Field label="Amount Paid" value={v.amount_paid ? `₱${Number(v.amount_paid).toFixed(2)}` : "—"} />
-              <Field label="Paid At" value={formatDateTime(v.paid_at)} />
-            </div>
+            <>
+              <div className="user-panel-grid">
+                <Field label="Receipt #" value={v.receipt_no || "—"} />
+                <Field label="Amount Paid" value={v.amount_paid ? `₱${Number(v.amount_paid).toFixed(2)}` : "—"} />
+                <Field label="Paid At" value={formatDateTime(v.paid_at)} />
+              </div>
+              {v.receipt_filename && v.payment_id && (
+                <a href={getReceiptPhotoUrl(v.payment_id, v.access_token)} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={getReceiptPhotoUrl(v.payment_id, v.access_token)}
+                    alt="Receipt"
+                    style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginTop: 8 }}
+                  />
+                </a>
+              )}
+            </>
           ) : (
             <div className="empty-state" style={{ padding: "12px 0" }}>
               <div className="empty-state-text">No payment recorded.</div>
@@ -418,7 +537,7 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
           <div className="user-panel-actions">
             <button className="btn btn-outline btn-sm" onClick={() => onAction("edit", v)}>Edit</button>
             {v.status !== "paid" && (
-              <button className="btn btn-outline btn-sm" onClick={() => onAction("mark-paid", v)}>Mark Paid</button>
+              <button className="btn btn-outline btn-sm" onClick={() => onAction("mark-paid", v)}>Record Payment</button>
             )}
             {v.status !== "resolved" && (
               <button className="btn btn-outline btn-sm" onClick={() => onAction("mark-resolved", v)}>Mark Resolved</button>
@@ -475,13 +594,15 @@ function RowMenu({ violation: v, isAdmin, onAction, onClose }) {
 
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 function exportCsv(rows) {
-  const headers = ["Ticket #", "Motorist", "Violation Type", "Enforcer", "Date Issued", "Status", "Notes"];
+  const headers = ["Ticket #", "Motorist", "Violation Type", "Enforcer", "Date Issued", "Status", "Fine Amount", "Balance Due", "Notes"];
   const escape = (s) => `"${String(s ?? "").replace(/"/g, '""')}"`;
   const lines = [
     headers.join(","),
     ...rows.map((v) => [
       v.ticket_no, v.motorist_name, v.violation_type, v.enforcer_name,
-      v.date_issued, v.status, v.notes,
+      v.date_issued, v.status,
+      Number(v.fine_total ?? 0).toFixed(2), Number(v.balance_due ?? 0).toFixed(2),
+      v.notes,
     ].map(escape).join(",")),
   ];
   const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
@@ -531,6 +652,7 @@ export default function TicketsTable({ violations, onRefresh }) {
 
   // Modals / panel
   const [editViolation, setEditViolation] = useState(null);
+  const [paymentViolation, setPaymentViolation] = useState(null);
   const [showManageTypes, setShowManageTypes] = useState(false);
   const [detailsId, setDetailsId] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -630,6 +752,7 @@ export default function TicketsTable({ violations, onRefresh }) {
       let va = a[sortKey] ?? "";
       let vb = b[sortKey] ?? "";
       if (sortKey === "date_issued") { va = new Date(a.date_issued).getTime(); vb = new Date(b.date_issued).getTime(); }
+      if (sortKey === "balance_due") { va = Number(a.balance_due ?? 0); vb = Number(b.balance_due ?? 0); }
       if (va < vb) return -1 * dir;
       if (va > vb) return  1 * dir;
       return 0;
@@ -656,12 +779,12 @@ export default function TicketsTable({ violations, onRefresh }) {
     switch (action) {
       case "view": return setDetailsId(target.id);
       case "edit": return setEditViolation(target);
-      case "mark-paid":
+      case "mark-paid": return setPaymentViolation(target);
       case "mark-resolved":
       case "mark-dismissed":
       case "reopen": {
         const map = {
-          "mark-paid": "paid", "mark-resolved": "resolved",
+          "mark-resolved": "resolved",
           "mark-dismissed": "dismissed", "reopen": "pending",
         };
         const newStatus = map[action];
@@ -879,6 +1002,7 @@ export default function TicketsTable({ violations, onRefresh }) {
                   <th className="sortable" onClick={() => sortBy("enforcer_name")}>Enforcer{si("enforcer_name")}</th>
                   <th className="sortable" onClick={() => sortBy("date_issued")}>Date{si("date_issued")}</th>
                   <th className="sortable" onClick={() => sortBy("status")}>Status{si("status")}</th>
+                  <th className="sortable" onClick={() => sortBy("balance_due")}>Balance Due{si("balance_due")}</th>
                   <th style={{ width: 50 }} />
                 </tr>
               </thead>
@@ -906,6 +1030,9 @@ export default function TicketsTable({ violations, onRefresh }) {
                       {formatDate(v.date_issued)}
                     </td>
                     <td><StatusBadge violation={v} /></td>
+                    <td style={{ fontWeight: 600, color: Number(v.balance_due ?? 0) > 0 ? "var(--danger, #d33)" : "inherit" }}>
+                      ₱{Number(v.balance_due ?? 0).toFixed(2)}
+                    </td>
                     <td className="um-row-stop" style={{ width: 50, position: "relative" }}>
                       <button
                         className="row-menu-btn"
@@ -954,6 +1081,14 @@ export default function TicketsTable({ violations, onRefresh }) {
           violation={editViolation}
           types={violationTypes}
           onClose={() => setEditViolation(null)}
+          onSaved={onRefresh}
+          toast={toast}
+        />
+      )}
+      {paymentViolation && (
+        <RecordPaymentModal
+          violation={paymentViolation}
+          onClose={() => setPaymentViolation(null)}
           onSaved={onRefresh}
           toast={toast}
         />
