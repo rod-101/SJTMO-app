@@ -35,6 +35,15 @@ const STATUS_LABEL = {
   dismissed: "Dismissed", disputed: "Disputed", overdue: "Overdue",
 };
 
+const STATUS_DESCRIPTION = {
+  pending: "Violation issued; awaiting payment or review.",
+  paid: "Payment received; awaiting final closure by admin.",
+  resolved: "Case closed and settled — no further action needed.",
+  dismissed: "Ticket voided/cancelled; no payment owed.",
+  disputed: "Motorist has contested the violation; under review.",
+  overdue: "Payment deadline passed without payment.",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const formatDate = (d) =>
   d ? new Date(d).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "—";
@@ -77,7 +86,55 @@ function ToastStack({ toasts }) {
 function StatusBadge({ violation }) {
   const overdue = isOverdue(violation);
   const status = overdue ? "overdue" : violation.status;
-  return <span className={`badge badge-${status}`}>{STATUS_LABEL[status] || status}</span>;
+  return (
+    <span className={`badge badge-${status}`} title={STATUS_DESCRIPTION[status] || ""}>
+      {STATUS_LABEL[status] || status}
+    </span>
+  );
+}
+
+function StatusLegend() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const click = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", click);
+    return () => document.removeEventListener("mousedown", click);
+  }, [open]);
+
+  return (
+    <div className="status-legend" ref={ref} style={{ position: "relative" }}>
+      <button
+        type="button"
+        className="btn btn-outline btn-sm"
+        aria-label="What do statuses mean?"
+        title="What do statuses mean?"
+        onClick={() => setOpen((o) => !o)}
+      >
+        Status Guide
+      </button>
+      {open && (
+        <div
+          className="status-legend-popover"
+          style={{
+            position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 20,
+            background: "var(--surface, #fff)", border: "1px solid var(--border, #e0e0e0)",
+            borderRadius: 8, padding: "10px 12px", width: 280,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+          }}
+        >
+          {STATUS_OPTIONS.map((s) => (
+            <div key={s} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "5px 0" }}>
+              <span className={`badge badge-${s}`} style={{ flexShrink: 0 }}>{STATUS_LABEL[s]}</span>
+              <span style={{ fontSize: "0.78rem", color: "var(--text-light)" }}>{STATUS_DESCRIPTION[s]}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function SkeletonRows({ count = 5 }) {
@@ -906,6 +963,7 @@ export default function TicketsTable({ violations, onRefresh }) {
           <div className="um-page-subtitle">Manage tickets, payments, and case status.</div>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
+          <StatusLegend />
           <button className="btn btn-outline btn-sm" onClick={handleRefresh}>Refresh</button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowManageTypes(true)}>Manage Violation Types</button>
         </div>
