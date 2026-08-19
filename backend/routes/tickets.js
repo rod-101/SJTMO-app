@@ -36,7 +36,7 @@ const uploadEvidence = multer({
 });
 
 // GET /tickets
-router.get("/", requireAuth, authorize("admin", "enforcer", "treasury"), async (req, res) => {
+router.get("/", requireAuth, authorize("admin", "enforcer", "treasury", "motorist"), async (req, res) => {
   const { motorist, motorist_id } = req.query;
   try {
     const selectCols = `
@@ -65,7 +65,20 @@ router.get("/", requireAuth, authorize("admin", "enforcer", "treasury"), async (
       ORDER BY v.date_issued DESC`;
     let params = [];
 
-    if (motorist_id) {
+    if (req.user.role === "motorist") {
+      // Motorists can only ever see their own tickets — ignore any motorist/motorist_id
+      // query params and scope strictly to their own account. Matches both tickets
+      // linked via the motorists.user_id account link and legacy tickets that only
+      // match by name (issued before the motorist record was linked to this account).
+      query = `${selectCols}
+        WHERE v.is_deleted = FALSE
+          AND (
+            v.motorist_id IN (SELECT id FROM motorists WHERE user_id = $1)
+            OR LOWER(v.motorist_name) = LOWER($2)
+          )
+        ORDER BY v.date_issued DESC`;
+      params = [req.user.id, req.user.name];
+    } else if (motorist_id) {
       query = `${selectCols}
         WHERE v.motorist_id = $1 AND v.is_deleted = FALSE
         ORDER BY v.date_issued DESC`;
@@ -186,8 +199,25 @@ router.post("/", requireAuth, authorize("admin", "enforcer"), async (req, res) =
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Motorist not found" });
     }
-    const motorist = motoristResult.rows[0];
+    let motorist = motoristResult.rows[0];
     const motorist_name = `${motorist.first_name} ${motorist.last_name}`;
+
+    // If this motorist record isn't linked to a self-service account yet, look for a
+    // single unambiguous match in users (role='motorist') by full name and link it,
+    // so future tickets for the same person are already tied to their account.
+    if (!motorist.user_id) {
+      const accountMatch = await client.query(
+        `SELECT id FROM users WHERE role = 'motorist' AND LOWER(name) = LOWER($1) LIMIT 2`,
+        [motorist_name],
+      );
+      if (accountMatch.rows.length === 1) {
+        const linked = await client.query(
+          `UPDATE motorists SET user_id = $1 WHERE id = $2 RETURNING *`,
+          [accountMatch.rows[0].id, motorist.id],
+        );
+        motorist = linked.rows[0];
+      }
+    }
 
     const vehicleArgs = [
       motorist.id,

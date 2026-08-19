@@ -166,6 +166,11 @@ CREATE TABLE IF NOT EXISTS motorists (
 CREATE INDEX IF NOT EXISTS idx_motorists_name    ON motorists(last_name, first_name);
 CREATE INDEX IF NOT EXISTS idx_motorists_license ON motorists(license_no);
 
+-- Links a walk-up motorist record to their self-service account (users.role = 'motorist'),
+-- so tickets issued against this motorist automatically show up in that account's portal.
+ALTER TABLE motorists ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_motorists_user ON motorists(user_id);
+
 -- tickets.motorist_id now points at motorists, not users
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_motorist_id_fkey;
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_motorist_id_fkey;

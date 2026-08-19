@@ -234,7 +234,8 @@ function MotoristStep({
           <strong>
             {motoristForm.first_name} {motoristForm.last_name}
           </strong>
-          .
+          .<br />
+          <br />
           {nameCollision && (
             <div className="iv-motorist-collision">
               ⚠ A motorist named{" "}
@@ -247,6 +248,7 @@ function MotoristStep({
                 : ""}
               . Select them above if this is the same person, to avoid creating
               a duplicate record.
+              <br />
               <label className="iv-collision-confirm">
                 <br />
                 <input
