@@ -131,8 +131,15 @@ function MotoristStep({
     setShowSuggest(false);
   };
 
-  const field = (key) => (e) =>
-    setMotoristForm({ ...motoristForm, id: null, [key]: e.target.value });
+  const field = (key) => (e) => {
+    const clearsSelection =
+      key === "first_name" || key === "last_name" || key === "birthday";
+    setMotoristForm({
+      ...motoristForm,
+      ...(clearsSelection ? { id: null } : {}),
+      [key]: e.target.value,
+    });
+  };
 
   const clearSelection = () => {
     setMotoristForm({
@@ -256,8 +263,7 @@ function MotoristStep({
                   checked={confirmedNew}
                   onChange={(e) => onConfirmNew(e.target.checked)}
                 />
-                This is a different person with the same name — create a new
-                record.
+                This is a different person — create a new record.
               </label>
             </div>
           )}
