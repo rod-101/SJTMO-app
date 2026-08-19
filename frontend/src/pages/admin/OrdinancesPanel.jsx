@@ -8,7 +8,7 @@ import "../../App.css";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
-export default function OrdinancesPanel() {
+export default function OrdinancesPanel({ readOnly = false }) {
   const [ordinances, setOrdinances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -120,19 +120,21 @@ export default function OrdinancesPanel() {
               Upload and manage traffic ordinance PDF files
             </div>
           </div>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => {
-              setShowForm(!showForm);
-              setError("");
-            }}
-          >
-            {showForm ? "✕ Cancel" : "⬆️ Upload Ordinance"}
-          </button>
+          {!readOnly && (
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setShowForm(!showForm);
+                setError("");
+              }}
+            >
+              {showForm ? "✕ Cancel" : "⬆️ Upload Ordinance"}
+            </button>
+          )}
         </div>
 
         {/* Upload Form */}
-        {showForm && (
+        {!readOnly && showForm && (
           <form
             onSubmit={handleUpload}
             style={{ borderTop: "1px solid #e0e0e0", paddingTop: 16 }}
@@ -213,14 +215,16 @@ export default function OrdinancesPanel() {
           <div className="empty-state">
             <div className="empty-state-icon">📂</div>
             <div className="empty-state-text">No ordinances uploaded yet</div>
-            <div style={{ marginTop: 12 }}>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => setShowForm(true)}
-              >
-                Upload First Ordinance
-              </button>
-            </div>
+            {!readOnly && (
+              <div style={{ marginTop: 12 }}>
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => setShowForm(true)}
+                >
+                  Upload First Ordinance
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           ordinances.map((o) => (
@@ -259,12 +263,14 @@ export default function OrdinancesPanel() {
                 >
                   ⬇️ Download
                 </a>
-                <button
-                  className="btn btn-danger btn-sm"
-                  onClick={() => handleDelete(o.id, o.title)}
-                >
-                  Delete
-                </button>
+                {!readOnly && (
+                  <button
+                    className="btn btn-danger btn-sm"
+                    onClick={() => handleDelete(o.id, o.title)}
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
           ))

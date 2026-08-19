@@ -75,6 +75,14 @@ export const login = (email, password) =>
     body: JSON.stringify({ email, password }),
   }).then(handleResponse);
 
+export const register = (data) =>
+  fetch(`${BASE_URL}/login/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(data),
+  }).then(handleResponse);
+
 export const refreshToken = () =>
   fetch(`${BASE_URL}/login/refresh`, {
     method: "POST",

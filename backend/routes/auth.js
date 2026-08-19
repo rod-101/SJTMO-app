@@ -11,6 +11,8 @@ const {
   refreshCookieOptions,
 } = require("../services/jwt");
 
+const SALT_ROUNDS = 10;
+
 // POST /login
 // Body: { email: string, password: string }
 router.post("/", async (req, res) => {
@@ -83,6 +85,65 @@ router.post("/", async (req, res) => {
     res.json({ success: true, user: safeUser, token: accessToken });
   } catch (err) {
     console.error("Login error:", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
+});
+
+// POST /login/register — self-register a motorist account and auto-login.
+// Body: { name, email, password, contact_no? }
+router.post("/register", async (req, res) => {
+  const { name, email, password, contact_no } = req.body;
+
+  if (!name || !email || !password) {
+    return res
+      .status(400)
+      .json({ error: "Name, email, and password are required." });
+  }
+
+  if (typeof email !== "string" || email.length > 255) {
+    return res.status(400).json({ error: "Invalid request." });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+
+  if (typeof password !== "string" || password.length < 8) {
+    return res
+      .status(400)
+      .json({ error: "Password must be at least 8 characters." });
+  }
+
+  try {
+    const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password, role, contact_no)
+       VALUES ($1, $2, $3, 'motorist', $4)
+       RETURNING id, name, email, role, status, contact_no, last_login,
+         token_version, created_at, updated_at`,
+      [name.trim(), normalizedEmail, hashed, contact_no || null],
+    );
+    const user = result.rows[0];
+
+    const accessToken = signAccessToken(user);
+    const { raw: refreshToken } = await issueRefreshToken(pool, {
+      userId: user.id,
+      userAgent: req.headers["user-agent"],
+      ip: req.ip,
+    });
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+      ...refreshCookieOptions(),
+      path: "/login",
+    });
+
+    res.status(201).json({ success: true, user, token: accessToken });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Email is already registered." });
+    }
+    console.error("Register error:", err);
     res.status(500).json({ error: "Server error. Please try again." });
   }
 });

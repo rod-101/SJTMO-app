@@ -4,6 +4,7 @@ import MotoristBottomNav from "../../components/MotoristBottomNav";
 import MotoristDashboardHome from "./MotoristDashboardHome";
 import MotoristProfile from "./MotoristProfile";
 import ViolationDetail from "./ViolationDetail";
+import OrdinancesPanel from "../admin/OrdinancesPanel";
 import { getViolations } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -120,6 +121,8 @@ export default function MotoristDashboard() {
         {tab === "profile" && (
           <MotoristProfile violations={violations} />
         )}
+
+        {tab === "ordinances" && <OrdinancesPanel readOnly />}
       </div>
 
       <MotoristBottomNav active={tab} onChange={setTab} />

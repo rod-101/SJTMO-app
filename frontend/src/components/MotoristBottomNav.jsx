@@ -4,6 +4,7 @@ const NAV_ITEMS = [
   { key: "dashboard",  label: "Dashboard",     icon: "⊞"  },
   { key: "violations", label: "My Violations", icon: "📋" },
   { key: "profile",    label: "Profile",       icon: "👤" },
+  { key: "ordinances", label: "Ordinances",    icon: "📌" },
 ];
 
 export default function MotoristBottomNav({ active, onChange }) {

@@ -466,7 +466,7 @@ export default function LandingPage() {
             </button>
             <button
               className="lp-btn lp-btn--primary"
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/register")}
             >
               Get Started
             </button>
@@ -516,7 +516,7 @@ export default function LandingPage() {
               className="lp-btn lp-btn--primary"
               onClick={() => {
                 setMenuOpen(false);
-                navigate("/login");
+                navigate("/register");
               }}
             >
               Get Started

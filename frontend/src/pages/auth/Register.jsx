@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { login } from "../../services/api";
+import { register } from "../../services/api";
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const SignalIcon = () => (
@@ -54,8 +54,12 @@ const EyeIcon = ({ open }) =>
     </svg>
   );
 
-export default function Login() {
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export default function Register() {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [contactNo, setContactNo] = useState("");
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
@@ -68,20 +72,31 @@ export default function Login() {
     e.preventDefault();
     setError("");
 
-    if (!email.trim()) {
-      setError("Enter your email address.");
+    if (!name.trim()) {
+      setError("Enter your full name.");
+      return;
+    }
+    if (!EMAIL_RE.test(email.trim())) {
+      setError("Enter a valid email address.");
+      return;
+    }
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
       return;
     }
 
     setLoading(true);
     try {
-      const { user, token } = await login(email.trim(), password);
+      const { user, token } = await register({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        contact_no: contactNo.trim() || undefined,
+      });
       loginUser(user, token);
-      if (user.role === "admin") navigate("/admin");
-      else if (user.role === "enforcer") navigate("/enforcer");
-      else navigate("/motorist");
+      navigate("/motorist");
     } catch (err) {
-      setError(err.message || "Login failed. Please check your credentials.");
+      setError(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -119,6 +134,27 @@ export default function Login() {
 
         {/* ── Form ── */}
         <form onSubmit={handleSubmit} noValidate>
+          {/* Name */}
+          <div className="form-group">
+            <label className="form-label" htmlFor="name">
+              Full Name
+            </label>
+            <input
+              id="name"
+              className="form-input"
+              type="text"
+              placeholder="Juan Dela Cruz"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError("");
+              }}
+              required
+              autoComplete="name"
+              autoFocus
+            />
+          </div>
+
           {/* Email */}
           <div className="form-group">
             <label className="form-label" htmlFor="email">
@@ -137,8 +173,24 @@ export default function Login() {
               }}
               required
               autoComplete="email"
-              autoFocus
               spellCheck={false}
+            />
+          </div>
+
+          {/* Contact No (optional) */}
+          <div className="form-group">
+            <label className="form-label" htmlFor="contact_no">
+              Contact Number{" "}
+              <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+            </label>
+            <input
+              id="contact_no"
+              className="form-input"
+              type="tel"
+              placeholder="09XXXXXXXXX"
+              value={contactNo}
+              onChange={(e) => setContactNo(e.target.value)}
+              autoComplete="tel"
             />
           </div>
 
@@ -152,14 +204,14 @@ export default function Login() {
                 id="password"
                 className="form-input"
                 type={showPwd ? "text" : "password"}
-                placeholder="Enter your password"
+                placeholder="At least 8 characters"
                 value={password}
                 onChange={(e) => {
                   setPassword(e.target.value);
                   setError("");
                 }}
                 required
-                autoComplete="current-password"
+                autoComplete="new-password"
               />
               <button
                 type="button"
@@ -181,20 +233,17 @@ export default function Login() {
           >
             {loading ? (
               <span className="btn-loading">
-                <span className="spinner" /> Signing in…
+                <span className="spinner" /> Creating account…
               </span>
             ) : (
-              "Sign In"
+              "Register"
             )}
           </button>
         </form>
 
         {/* ── Footer ── */}
         <p className="login-footer">
-          Don&apos;t have an account? <Link to="/register">Register</Link>
-        </p>
-        <p className="login-footer">
-          San Jose, Occidental Mindoro &mdash; Traffic Management System
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
       </div>
     </div>
