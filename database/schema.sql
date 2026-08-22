@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
     role          VARCHAR(20)  NOT NULL
                   CHECK (role IN ('admin','enforcer','motorist','treasury')),
     contact_no    VARCHAR(20),
+    birthday      DATE,
     is_active     BOOLEAN      DEFAULT TRUE,
     created_at    TIMESTAMPTZ  DEFAULT NOW(),
     updated_at    TIMESTAMPTZ  DEFAULT NOW()
@@ -32,6 +33,7 @@ DO $$ BEGIN
 END $$;
 ALTER TABLE users ALTER COLUMN role SET NOT NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_no    VARCHAR(20);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday      DATE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active     BOOLEAN     DEFAULT TRUE;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMPTZ DEFAULT NOW();
 ALTER TABLE users ADD COLUMN IF NOT EXISTS status        VARCHAR(20) DEFAULT 'active';

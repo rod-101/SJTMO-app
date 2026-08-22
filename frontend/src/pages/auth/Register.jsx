@@ -59,8 +59,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [contactNo, setContactNo] = useState("");
+  const [birthday, setBirthday] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -84,6 +85,18 @@ export default function Register() {
       setError("Password must be at least 8 characters.");
       return;
     }
+    if (!birthday) {
+      setError("Enter your birthday.");
+      return;
+    }
+    if (new Date(birthday) > new Date()) {
+      setError("Birthday cannot be in the future.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -91,7 +104,7 @@ export default function Register() {
         name: name.trim(),
         email: email.trim(),
         password,
-        contact_no: contactNo.trim() || undefined,
+        birthday,
       });
       loginUser(user, token);
       navigate("/motorist");
@@ -177,20 +190,23 @@ export default function Register() {
             />
           </div>
 
-          {/* Contact No (optional) */}
+          {/* Birthday */}
           <div className="form-group">
-            <label className="form-label" htmlFor="contact_no">
-              Contact Number{" "}
-              <span style={{ fontWeight: 400, opacity: 0.7 }}>(optional)</span>
+            <label className="form-label" htmlFor="birthday">
+              Birthday
             </label>
             <input
-              id="contact_no"
+              id="birthday"
               className="form-input"
-              type="tel"
-              placeholder="09XXXXXXXXX"
-              value={contactNo}
-              onChange={(e) => setContactNo(e.target.value)}
-              autoComplete="tel"
+              type="date"
+              value={birthday}
+              onChange={(e) => {
+                setBirthday(e.target.value);
+                setError("");
+              }}
+              required
+              autoComplete="bday"
+              max={new Date().toISOString().slice(0, 10)}
             />
           </div>
 
@@ -222,6 +238,28 @@ export default function Register() {
               >
                 <EyeIcon open={showPwd} />
               </button>
+            </div>
+          </div>
+
+          {/* Confirm Password */}
+          <div className="form-group">
+            <label className="form-label" htmlFor="confirm_password">
+              Confirm Password
+            </label>
+            <div className="input-eye-wrapper">
+              <input
+                id="confirm_password"
+                className="form-input"
+                type={showPwd ? "text" : "password"}
+                placeholder="Re-enter your password"
+                value={confirmPassword}
+                onChange={(e) => {
+                  setConfirmPassword(e.target.value);
+                  setError("");
+                }}
+                required
+                autoComplete="new-password"
+              />
             </div>
           </div>
 

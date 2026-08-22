@@ -110,7 +110,11 @@ router.post("/", async (req, res) => {
       actor,
       action: "user.create",
       targetId: created.id,
-      newValue: { name: created.name, email: created.email, role: created.role },
+      newValue: {
+        name: created.name,
+        email: created.email,
+        role: created.role,
+      },
       ip: req.ip,
     });
     await client.query("COMMIT");
@@ -324,10 +328,7 @@ router.get("/:id/activity", async (req, res) => {
   const { id } = req.params;
   try {
     const [user, logs, vCounts] = await Promise.all([
-      pool.query(
-        `SELECT ${SAFE_USER_COLUMNS} FROM users WHERE id = $1`,
-        [id],
-      ),
+      pool.query(`SELECT ${SAFE_USER_COLUMNS} FROM users WHERE id = $1`, [id]),
       pool.query(
         `SELECT id, user_name, action, old_value, new_value, created_at
          FROM audit_logs
@@ -397,6 +398,7 @@ router.delete("/:id", async (req, res) => {
     await client.query("COMMIT");
     res.json({ success: true });
   } catch (err) {
+    c;
     await client.query("ROLLBACK");
     console.error("Delete user error:", err);
     res.status(500).json({ error: "Server error" });

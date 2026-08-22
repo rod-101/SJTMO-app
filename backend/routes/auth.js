@@ -90,14 +90,14 @@ router.post("/", async (req, res) => {
 });
 
 // POST /login/register — self-register a motorist account and auto-login.
-// Body: { name, email, password, contact_no? }
+// Body: { name, email, password, birthday }
 router.post("/register", async (req, res) => {
-  const { name, email, password, contact_no } = req.body;
+  const { name, email, password, birthday } = req.body;
 
-  if (!name || !email || !password) {
+  if (!name || !email || !password || !birthday) {
     return res
       .status(400)
-      .json({ error: "Name, email, and password are required." });
+      .json({ error: "Name, email, password, and birthday are required." });
   }
 
   if (typeof email !== "string" || email.length > 255) {
@@ -116,14 +116,19 @@ router.post("/register", async (req, res) => {
       .json({ error: "Password must be at least 8 characters." });
   }
 
+  const birthdayDate = new Date(birthday);
+  if (Number.isNaN(birthdayDate.getTime()) || birthdayDate > new Date()) {
+    return res.status(400).json({ error: "Enter a valid birthday." });
+  }
+
   try {
     const hashed = await bcrypt.hash(password, SALT_ROUNDS);
     const result = await pool.query(
-      `INSERT INTO users (name, email, password, role, contact_no)
+      `INSERT INTO users (name, email, password, role, birthday)
        VALUES ($1, $2, $3, 'motorist', $4)
-       RETURNING id, name, email, role, status, contact_no, last_login,
+       RETURNING id, name, email, role, status, contact_no, birthday, last_login,
          token_version, created_at, updated_at`,
-      [name.trim(), normalizedEmail, hashed, contact_no || null],
+      [name.trim(), normalizedEmail, hashed, birthday],
     );
     const user = result.rows[0];
 

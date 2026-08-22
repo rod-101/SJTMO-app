@@ -59,6 +59,7 @@ async function runStartupMigrations() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login    TIMESTAMPTZ`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT         DEFAULT 0`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS contact_no   VARCHAR(20)`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS birthday     DATE`,
     `CREATE TABLE IF NOT EXISTS vehicles (
        id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
        motorist_id     UUID         REFERENCES motorists(id) ON DELETE SET NULL,
