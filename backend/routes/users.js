@@ -9,7 +9,7 @@ const VALID_STATUSES = new Set(["active", "inactive", "suspended"]);
 
 const ROLE_RANK = { motorist: 1, enforcer: 2, treasury: 3, admin: 4 };
 
-const SAFE_USER_COLUMNS = `id, name, email, role, status, contact_no,
+const SAFE_USER_COLUMNS = `id, name, email, role, status,
   last_login, created_at, updated_at`;
 
 // Look up the actor's role to enforce hierarchy. The actor is identified by
@@ -132,10 +132,10 @@ router.post("/", async (req, res) => {
 });
 
 // ─── PATCH /users/:id ─────────────────────────────────────────────────────────
-// Body may include: name, email, role, status, contact_no
+// Body may include: name, email, role, status
 router.patch("/:id", async (req, res) => {
   const { id } = req.params;
-  const { name, email, role, status, contact_no } = req.body;
+  const { name, email, role, status } = req.body;
 
   const updates = {};
   if (name !== undefined) updates.name = String(name).trim();
@@ -159,8 +159,6 @@ router.patch("/:id", async (req, res) => {
     updates.status = status;
     updates.is_active = status === "active";
   }
-  if (contact_no !== undefined) updates.contact_no = contact_no || null;
-
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: "No updates provided." });
   }

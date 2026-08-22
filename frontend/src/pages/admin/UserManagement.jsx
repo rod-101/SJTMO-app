@@ -333,7 +333,6 @@ function UserDetailsPanel({ userId, onClose, onAction, stats }) {
             <div className="user-panel-grid">
               <Field label="Created" value={formatDate(data.user.created_at)} />
               <Field label="Last Login" value={formatRelative(data.user.last_login)} />
-              <Field label="Contact" value={data.user.contact_no || "—"} />
               <Field label="User ID" value={<code style={{ fontSize: "0.7rem" }}>{data.user.id.slice(0, 8)}…</code>} />
             </div>
 

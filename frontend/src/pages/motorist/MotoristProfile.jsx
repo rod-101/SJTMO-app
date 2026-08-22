@@ -72,10 +72,6 @@ export default function MotoristProfile({ violations }) {
               <span className="enf-info-value">Motorist</span>
             </div>
             <div className="enf-info-row">
-              <span className="enf-info-label">Contact</span>
-              <span className="enf-info-value">{user.contact_no || "—"}</span>
-            </div>
-            <div className="enf-info-row">
               <span className="enf-info-label">ID</span>
               <span className="enf-info-value">
                 <code style={{ fontSize: "0.75rem" }}>
