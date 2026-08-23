@@ -2,7 +2,7 @@
 
 ## Context
 
-SJTMO (San Jose Traffic Management Office) is a web-based traffic violation system for a Philippine LGU, currently built on React + Express + PostgreSQL. It has functional login, role-based routing (admin / enforcer / treasury / motorist), and an admin User Management page — but **no registration system, no real backend authentication, and no motorist identity model**.
+SJTMO (San Jose Traffic Management Office) is a web-based traffic violation system for a Philippine LGU, currently built on React + Express + PostgreSQL. It has functional login, role-based routing (admin / enforcer / motorist), and an admin User Management page — but **no registration system, no real backend authentication, and no motorist identity model**.
 
 Today the backend trusts an `X-Actor-Id` header sent by the client. Anyone who knows a UUID can call protected endpoints. There is no JWT issuance on login, no auth middleware, no rate limiting, no security headers, and no SMS/email verification path. The motorist user model is also incomplete — there are no license number or plate number fields, so tickets store the motorist's name as free text and cannot be reliably tied back to a registered account.
 
@@ -16,20 +16,19 @@ The deliverable is architecture, flow, and decisions — not code. An MVP-shaped
 
 ### Verdict: **Hybrid registration, never fully public**
 
-Three personas, three creation paths:
+Two personas, two creation paths:
 
 | Role | Creation method | Why |
 |------|-----------------|-----|
 | **admin** | Bootstrapped (DB seed) + admin-only invite | Privileged. Must never be self-creatable. |
 | **enforcer** | Admin-created, with mandatory employee record | Issuing tickets is a sovereign act of the LGU. Identity must be verified offline before an account exists. |
-| **treasury** | Admin-created, with mandatory employee record | Handles money. Same threat model as enforcer plus financial. |
 | **motorist** | Auto-stub at first ticket → SMS-OTP claim, **OR** opt-in self-registration | Motorists are citizens, not employees. They need access to view violations / pay online, but their identity is the **license number**, which the LGU verifies at ticket time. |
 
 ### Why not fully public?
 
 A pure self-registration model fails real LGU realities:
 
-- An attacker could register as `enforcer` or `treasury` if role is a form field — privilege escalation.
+- An attacker could register as `enforcer` if role is a form field — privilege escalation.
 - Even role-fixed public signup creates "identity drift" between the people the office knows offline and account holders online.
 - Email-only verification is unreliable in PH LGU populations — many motorists don't have stable email.
 - Government audit/compliance expects every staff account to map to an actual employee.
@@ -52,12 +51,12 @@ Staff accounts are **invited**, never registered. Motorist accounts are **auto-c
 2. First login forces password change.
 3. After this, no further admins are created via DB — only admin-to-admin invites.
 
-### 2.2 Admin creates an enforcer or treasury officer (invite flow)
+### 2.2 Admin creates an enforcer (invite flow)
 
 ```
 Admin opens User Management → "Invite Staff"
    │
-   ├─ Fills: full name, email (institutional), role (enforcer|treasury), employee_id, contact_no
+   ├─ Fills: full name, email (institutional), role (enforcer), employee_id, contact_no
    │
 POST /users/invite
    │
@@ -186,7 +185,7 @@ If license_no is blank AND violation_type allows it:
     (no license_no = no anchor for verification). They show up in
     User Management as `role='motorist'` `status='unclaimable'`
     with a note. If the motorist later obtains a license and visits
-    the office, treasury staff manually merges the unclaimable stub
+    the office, admin staff manually merges the unclaimable stub
     into a license-anchored account using the merge tool (see §6.2).
 ```
 
@@ -282,7 +281,7 @@ POST /auth/login  { identifier, password }
    └─ Frontend stores access in memory, refresh in httpOnly Secure cookie
    │
 Frontend routes by role:
-   admin → /admin   enforcer → /enforcer   treasury → /treasury (NEW)   motorist → /motorist
+   admin → /admin   enforcer → /enforcer   motorist → /motorist
 ```
 
 ### 2.7 Password reset (self-service)
@@ -441,7 +440,7 @@ CREATE INDEX idx_refresh_user ON refresh_tokens(user_id) WHERE revoked_at IS NUL
 
 ### 3.5 New table: `motorist_review_queue` (typo / merge candidates)
 
-When the auto-stub algorithm in §2.3.1 STEP 3 detects a likely typo but the enforcer overrides and creates a new stub anyway, we file the case here for an admin to review later. Same table is used by treasury staff when manually merging an `unclaimable` no-license stub into a real account.
+When the auto-stub algorithm in §2.3.1 STEP 3 detects a likely typo but the enforcer overrides and creates a new stub anyway, we file the case here for an admin to review later. Same table is used by admin staff when manually merging an `unclaimable` no-license stub into a real account.
 
 ```sql
 CREATE TABLE motorist_review_queue (
@@ -498,8 +497,7 @@ The current [routes/violations.js](backend/routes/violations.js) lookup uses `mo
 Existing `ROLE_RANK` in [routes/users.js](backend/routes/users.js#L10) is good; formalize as:
 
 ```
-admin     (rank 4)  ─ full system
-treasury  (rank 3)  ─ violations (read), payments (write), users (read motorist only)
+admin     (rank 3)  ─ full system
 enforcer  (rank 2)  ─ violations (write own, read all), users (read motorist on ticket form)
 motorist  (rank 1)  ─ own violations only, own profile, own payments
 ```
@@ -603,13 +601,13 @@ The current CRUD endpoints stay as-is. New additions:
 
 | Method | Path | Body | Response | Access |
 |--------|------|------|----------|--------|
-| POST | `/users/invite` | `{ name, email, role, employee_id?, contact_no? }` | `{ user }` (status=pending_invite) | admin only (or rank-gated for treasury) |
+| POST | `/users/invite` | `{ name, email, role, employee_id?, contact_no? }` | `{ user }` (status=pending_invite) | admin only |
 | POST | `/users/:id/resend-invite` | – | `204` | admin |
 | GET | `/users/me` | – | `{ user }` | authed |
 | PATCH | `/users/me` | `{ name?, contact_no?, password? }` | `{ user }` | authed (cannot change own role/status) |
-| GET | `/users?role=motorist&status=pending_claim` | – | paginated list | admin/treasury |
+| GET | `/users?role=motorist&status=pending_claim` | – | paginated list | admin |
 
-The existing `/users` POST stays for direct creation (no email round-trip), used for backfill or for treasury creating a motorist at the counter.
+The existing `/users` POST stays for direct creation (no email round-trip), used for backfill or for admin staff creating a motorist at the counter.
 
 ### 5.3 Violations — minor change
 
@@ -637,7 +635,6 @@ The existing `/users` POST stays for direct creation (no email round-trip), used
 /accept-invite/:token   (NEW — staff invite acceptance)
 /forgot-password        (NEW)
 /reset-password/:token  (NEW)
-/treasury               (NEW — currently missing despite role existing)
 /admin/users            (existing, enhanced — see below)
 /account                (NEW — user self-service profile)
 ```
@@ -648,11 +645,11 @@ Add route guards: `<ProtectedRoute requiredRole>` already exists in [src/App.jsx
 
 The current page in [src/pages/admin/UserManagement.jsx](frontend/src/pages/admin/UserManagement.jsx) is already strong (tabs, filters, modals, pagination). Additions:
 
-- **"Invite Staff" button** (replaces or augments "Add User") opens a modal with role-restricted dropdown (admin/enforcer/treasury), email, employee_id. No password field — the invitee sets their own.
+- **"Invite Staff" button** (replaces or augments "Add User") opens a modal with role-restricted dropdown (admin/enforcer), email, employee_id. No password field — the invitee sets their own.
 - **Pending users tab** or filter chip: `Pending Invite | Pending Claim | Pending Verify | Unclaimable`. Admin can resend invite, cancel, or convert.
 - **Motorist columns**: license_no, plate_no, phone_verified badge, violations count (already exists).
 - **Bulk operations** stay; add **Resend Invite** as a bulk action for `pending_invite` rows.
-- **Review Queue panel** (NEW): a separate admin view backed by `motorist_review_queue` (§3.5). Shows fuzzy-match flags from §2.3.1 STEP 3, side-by-side candidate cards (license, plate, name, ticket history), and a single **Merge** button that consolidates the records. Treasury staff can also raise a merge request from the motorist detail panel ("This is the same person as…") which lands in the same queue.
+- **Review Queue panel** (NEW): a separate admin view backed by `motorist_review_queue` (§3.5). Shows fuzzy-match flags from §2.3.1 STEP 3, side-by-side candidate cards (license, plate, name, ticket history), and a single **Merge** button that consolidates the records. Admin staff can also raise a merge request from the motorist detail panel ("This is the same person as…") which lands in the same queue.
 - **Server-side pagination + filtering**: today the page filters client-side. At thousands of motorists, switch the GET `/users` endpoint to support `?page=&pageSize=&role=&status=&q=` and move filtering server-side. UI changes are minimal (replace useMemo filters with server query).
 
 ### 6.3 Reused components / styling
@@ -669,7 +666,7 @@ The visual design stays minimalist and government-functional — no flashy anima
 
 ### 6.4 Mobile / PWA
 
-The frontend is already a PWA. Motorist flows (claim, view violations, pay) are **the** mobile-first surface. Admin/enforcer/treasury can be desktop-priority. Claim/login pages must be one-handed-usable (large tap targets, auto-tab between OTP digits).
+The frontend is already a PWA. Motorist flows (claim, view violations, pay) are **the** mobile-first surface. Admin/enforcer can be desktop-priority. Claim/login pages must be one-handed-usable (large tap targets, auto-tab between OTP digits).
 
 ### 6.5 Auth state changes
 
@@ -760,7 +757,6 @@ This phase alone closes the largest production gap. Demo flows still work.
 - [ ] `/auth/register` + `/auth/verify` for motorist self-registration.
 - [ ] `/auth/password-reset/*` for both staff (email) and motorist (SMS).
 - [ ] Frontend pages: `/register`, `/verify`, `/accept-invite/:token`, `/forgot-password`, `/reset-password/:token`.
-- [ ] Treasury dashboard route stub (`/treasury`).
 
 ### Phase 4 — Hardening & UX polish (ongoing)
 
@@ -805,7 +801,7 @@ This phase alone closes the largest production gap. Demo flows still work.
 - [frontend/src/services/api.js](frontend/src/services/api.js) — 401-refresh interceptor; drop `X-Actor-Id`.
 - [frontend/src/pages/auth/Login.jsx](frontend/src/pages/auth/Login.jsx) — status-aware redirects.
 - [frontend/src/pages/admin/UserManagement.jsx](frontend/src/pages/admin/UserManagement.jsx) — invite modal, pending filters, server-side paging.
-- New: `src/pages/auth/Register.jsx`, `Verify.jsx`, `Claim.jsx`, `AcceptInvite.jsx`, `ForgotPassword.jsx`, `ResetPassword.jsx`, `Account.jsx`, `src/pages/treasury/TreasuryDashboard.jsx`.
+- New: `src/pages/auth/Register.jsx`, `Verify.jsx`, `Claim.jsx`, `AcceptInvite.jsx`, `ForgotPassword.jsx`, `ResetPassword.jsx`, `Account.jsx`.
 
 ---
 
@@ -837,7 +833,7 @@ End-to-end smoke tests, in order, after each phase:
 9. Same one-character typo but enforcer overrides ("No, this is a different person") → new stub created AND a `motorist_review_queue` row with `reason='fuzzy_license_match'` appears for admin review.
 10. Two enforcers POST `/violations` for the same license_no in parallel → exactly one stub is created (unique constraint on `license_no_normalized` is the source of truth); the second POST sees the row from the first and links.
 11. Enforcer issues a "Driving Without License" ticket with no license_no, plate `ABC-1234`, name `Juan Dela Cruz` → stub created with `status='unclaimable'`, `license_no=NULL`. Second no-license ticket with same plate + same name → links to same row.
-12. Treasury manually merges an `unclaimable` stub into a license-anchored account from the User Management Review Queue → all violations re-point to the surviving user; the merged row is soft-deleted; audit log shows the merge with both IDs.
+12. Admin manually merges an `unclaimable` stub into a license-anchored account from the User Management Review Queue → all violations re-point to the surviving user; the merged row is soft-deleted; audit log shows the merge with both IDs.
 13. Motorist hits `/claim` with valid license + ticket_no → OTP appears in console (dev driver) → entering OTP + password → status flips to `active`, JWT issued.
 14. 5 wrong OTPs → account locked for 1 hour.
 

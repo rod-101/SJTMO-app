@@ -67,12 +67,6 @@ const USERS = [
     password: "cindy123123",
     role: "motorist",
   },
-  {
-    name: "Treasury Officer",
-    email: "treasury@sjtmo.gov.ph",
-    password: "Treasury@2025",
-    role: "treasury",
-  },
 ];
 
 async function seed() {

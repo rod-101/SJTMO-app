@@ -12,16 +12,15 @@ import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const ROLES = ["admin", "enforcer", "motorist", "treasury"];
+const ROLES = ["admin", "enforcer", "motorist"];
 const STATUSES = ["active", "inactive", "suspended"];
-const ROLE_RANK = { motorist: 1, enforcer: 2, treasury: 3, admin: 4 };
-const ROLE_LABEL = { admin: "Admin", enforcer: "Enforcer", motorist: "Motorist", treasury: "Treasury" };
+const ROLE_RANK = { motorist: 1, enforcer: 2, admin: 3 };
+const ROLE_LABEL = { admin: "Admin", enforcer: "Enforcer", motorist: "Motorist" };
 
 const TABS = [
   { key: "all",      label: "All Users",        role: null },
   { key: "enforcer", label: "Enforcers",         role: "enforcer" },
   { key: "motorist", label: "Motorists",         role: "motorist" },
-  { key: "treasury", label: "Treasury Officers", role: "treasury" },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -671,19 +670,12 @@ export default function UserManagement({ violations = [] }) {
       { key: "last_login", label: "Last Activity",  sortKey: "last_login" },
       { key: "actions",    label: "",              width: 50 },
     ];
-    if (activeTab === "motorist") return [
+    // motorist
+    return [
       ...base,
       { key: "status",     label: "Status",        sortKey: "status" },
       { key: "_received",  label: "Violations",    sortKey: "_received" },
       { key: "last_login", label: "Last Activity",  sortKey: "last_login" },
-      { key: "actions",    label: "",              width: 50 },
-    ];
-    // treasury
-    return [
-      ...base,
-      { key: "status",     label: "Status",        sortKey: "status" },
-      { key: "last_login", label: "Last Activity",  sortKey: "last_login" },
-      { key: "created_at", label: "Created",        sortKey: "created_at" },
       { key: "actions",    label: "",              width: 50 },
     ];
   }, [activeTab]);

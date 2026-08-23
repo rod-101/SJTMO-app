@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     email         VARCHAR(255) UNIQUE NOT NULL,
     password      VARCHAR(255) NOT NULL,
     role          VARCHAR(20)  NOT NULL
-                  CHECK (role IN ('admin','enforcer','motorist','treasury')),
+                  CHECK (role IN ('admin','enforcer','motorist')),
     birthday      DATE,
     is_active     BOOLEAN      DEFAULT TRUE,
     created_at    TIMESTAMPTZ  DEFAULT NOW(),
@@ -49,11 +49,14 @@ ALTER TABLE users ADD CONSTRAINT users_status_check
 
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 
--- Expand role CHECK to include treasury (drop any existing variant)
+-- Treasury role removed; reassign any lingering treasury accounts to enforcer
+-- before tightening the CHECK constraint, or the ALTER below would fail.
+UPDATE users SET role = 'enforcer' WHERE role = 'treasury';
+
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check;
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users2_role_check;
 ALTER TABLE users ADD CONSTRAINT users_role_check
-  CHECK (role IN ('admin','enforcer','motorist','treasury'));
+  CHECK (role IN ('admin','enforcer','motorist'));
 
 -- ── Violation types ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS violation_types (

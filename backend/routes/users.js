@@ -4,10 +4,10 @@ const bcrypt = require("bcryptjs");
 const pool = require("../db");
 
 const SALT_ROUNDS = 10;
-const VALID_ROLES = new Set(["admin", "enforcer", "motorist", "treasury"]);
+const VALID_ROLES = new Set(["admin", "enforcer", "motorist"]);
 const VALID_STATUSES = new Set(["active", "inactive", "suspended"]);
 
-const ROLE_RANK = { motorist: 1, enforcer: 2, treasury: 3, admin: 4 };
+const ROLE_RANK = { motorist: 1, enforcer: 2, admin: 3 };
 
 const SAFE_USER_COLUMNS = `id, name, email, role, status,
   last_login, created_at, updated_at`;

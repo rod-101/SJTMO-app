@@ -2336,12 +2336,6 @@ tr:hover td {
   font-size: 1.15rem;
 }
 
-/* ── Badges (extend existing) ────────────────────────────── */
-.badge-treasury {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
 [data-theme="dark"] .badge-pending {
   background: rgba(245, 158, 11, 0.18);
   color: #fbbf24;
@@ -2378,11 +2372,6 @@ tr:hover td {
   background: rgba(16, 185, 129, 0.18);
   color: #6ee7b7;
 }
-[data-theme="dark"] .badge-treasury {
-  background: rgba(37, 99, 235, 0.22);
-  color: #93c5fd;
-}
-
 /* ── Status pill ─────────────────────────────────────────── */
 .status-pill {
   display: inline-flex;

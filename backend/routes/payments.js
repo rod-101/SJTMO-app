@@ -29,7 +29,7 @@ const uploadReceipt = multer({
 });
 
 // POST /payments - record a payment for a ticket
-router.post("/", requireAuth, authorize("admin", "treasury"), async (req, res) => {
+router.post("/", requireAuth, authorize("admin"), async (req, res) => {
   const { ticket_id, receipt_no, amount_paid, payment_method, notes, paid_at } = req.body;
 
   if (!ticket_id || !receipt_no || !amount_paid) {
@@ -89,7 +89,7 @@ router.post("/", requireAuth, authorize("admin", "treasury"), async (req, res) =
 });
 
 // POST /payments/:id/photo - upload a photo of the physical receipt (staff only)
-router.post("/:id/photo", requireAuth, authorize("admin", "treasury"), (req, res) => {
+router.post("/:id/photo", requireAuth, authorize("admin"), (req, res) => {
   uploadReceipt.single("photo")(req, res, async (err) => {
     if (err) {
       return res.status(400).json({ error: err.message });
@@ -161,7 +161,7 @@ router.get("/:id/photo", optionalAuth, async (req, res) => {
 });
 
 // GET /payments/:ticket_id - get payment(s) for a ticket
-router.get("/:ticket_id", requireAuth, authorize("admin", "enforcer", "treasury"), async (req, res) => {
+router.get("/:ticket_id", requireAuth, authorize("admin", "enforcer"), async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.*, u.name AS processed_by_name

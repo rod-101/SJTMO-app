@@ -36,7 +36,7 @@ const uploadEvidence = multer({
 });
 
 // GET /tickets
-router.get("/", requireAuth, authorize("admin", "enforcer", "treasury", "motorist"), async (req, res) => {
+router.get("/", requireAuth, authorize("admin", "enforcer", "motorist"), async (req, res) => {
   const { motorist, motorist_id } = req.query;
   try {
     const selectCols = `
@@ -299,7 +299,7 @@ router.post("/", requireAuth, authorize("admin", "enforcer"), async (req, res) =
 });
 
 // PATCH /tickets/:id/status - update ticket status
-router.patch("/:id/status", requireAuth, authorize("admin", "treasury"), async (req, res) => {
+router.patch("/:id/status", requireAuth, authorize("admin"), async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
   const changed_by_id = req.user.id;
