@@ -131,6 +131,7 @@ export default function MotoristDashboard() {
         <ViolationDetail
           violation={selected}
           onClose={() => setSelected(null)}
+          onRefresh={fetchViolations}
         />
       )}
     </div>

@@ -108,7 +108,7 @@ CREATE TABLE IF NOT EXISTS tickets (
     notes           TEXT,
     date_issued     TIMESTAMPTZ  DEFAULT NOW(),
     status          VARCHAR(20)  NOT NULL DEFAULT 'pending'
-                    CHECK (status IN ('pending','paid','resolved','dismissed','disputed','overdue')),
+                    CHECK (status IN ('pending','payment_submitted','paid','resolved','dismissed','disputed','overdue')),
     latitude        DECIMAL(10,8),
     longitude       DECIMAL(11,8),
     is_deleted      BOOLEAN      DEFAULT FALSE,
@@ -152,7 +152,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_tickets_access_token ON tickets(access_tok
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_status_check;
 ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check;
 ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
-  CHECK (status IN ('pending','paid','resolved','dismissed','disputed','overdue'));
+  CHECK (status IN ('pending','payment_submitted','paid','resolved','dismissed','disputed','overdue'));
 
 -- ── Motorists ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS motorists (
@@ -223,6 +223,10 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_filename VARCHAR(255);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS submitted_by_motorist BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES users(id) ON DELETE SET NULL;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_payments_ticket ON payments(ticket_id);
 

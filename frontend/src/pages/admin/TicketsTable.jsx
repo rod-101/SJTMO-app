@@ -11,6 +11,8 @@ import {
   recordPayment,
   uploadReceiptPhoto,
   getReceiptPhotoUrl,
+  verifyPayment,
+  rejectPayment,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -27,16 +29,17 @@ const TABS = [
 ];
 
 const STATUS_OPTIONS = [
-  "pending", "paid", "resolved", "dismissed", "disputed", "overdue",
+  "pending", "payment_submitted", "paid", "resolved", "dismissed", "disputed", "overdue",
 ];
 
 const STATUS_LABEL = {
-  pending: "Pending", paid: "Paid", resolved: "Resolved",
+  pending: "Pending", payment_submitted: "Payment Submitted", paid: "Paid", resolved: "Resolved",
   dismissed: "Dismissed", disputed: "Disputed", overdue: "Overdue",
 };
 
 const STATUS_DESCRIPTION = {
   pending: "Violation issued; awaiting payment or review.",
+  payment_submitted: "Motorist submitted a receipt photo; awaiting admin verification.",
   paid: "Payment received; awaiting final closure by admin.",
   resolved: "Case closed and settled — no further action needed.",
   dismissed: "Ticket voided/cancelled; no payment owed.",
@@ -575,6 +578,11 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
                 <Field label="Amount Paid" value={v.amount_paid ? `₱${Number(v.amount_paid).toFixed(2)}` : "—"} />
                 <Field label="Paid At" value={formatDateTime(v.paid_at)} />
               </div>
+              {v.status === "payment_submitted" && v.submitted_by_motorist && (
+                <div style={{ fontSize: "0.75rem", color: "#1565c0", fontWeight: 600, marginTop: 6 }}>
+                  🧾 Submitted by motorist — awaiting verification
+                </div>
+              )}
               {v.receipt_filename && v.payment_id && (
                 <a href={getReceiptPhotoUrl(v.payment_id, v.access_token)} target="_blank" rel="noopener noreferrer">
                   <img
@@ -583,6 +591,16 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
                     style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginTop: 8 }}
                   />
                 </a>
+              )}
+              {v.status === "payment_submitted" && v.submitted_by_motorist && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => onAction("verify-payment", v)}>
+                    Verify
+                  </button>
+                  <button className="btn btn-danger btn-sm" onClick={() => onAction("reject-payment", v)}>
+                    Reject
+                  </button>
+                </div>
               )}
             </>
           ) : (
@@ -593,7 +611,7 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
 
           <div className="user-panel-actions">
             <button className="btn btn-outline btn-sm" onClick={() => onAction("edit", v)}>Edit</button>
-            {v.status !== "paid" && (
+            {v.status !== "paid" && v.status !== "payment_submitted" && (
               <button className="btn btn-outline btn-sm" onClick={() => onAction("mark-paid", v)}>Record Payment</button>
             )}
             {v.status !== "resolved" && (
@@ -639,7 +657,9 @@ function RowMenu({ violation: v, isAdmin, onAction, onClose }) {
       {item("View Details", "view")}
       {item("Edit Violation", "edit")}
       <div className="row-menu-divider" />
-      {v.status !== "paid"      && item("Mark as Paid",     "mark-paid")}
+      {v.status === "payment_submitted" && item("Verify Payment", "verify-payment")}
+      {v.status === "payment_submitted" && item("Reject Payment", "reject-payment", true)}
+      {v.status !== "paid" && v.status !== "payment_submitted" && item("Mark as Paid", "mark-paid")}
       {v.status !== "resolved"  && item("Mark as Resolved", "mark-resolved")}
       {v.status !== "dismissed" && item("Mark as Dismissed", "mark-dismissed")}
       {v.status !== "pending"   && item("Reopen",            "reopen")}
@@ -857,6 +877,27 @@ export default function TicketsTable({ violations, onRefresh }) {
           },
         });
       }
+      case "verify-payment": return setConfirmAction({
+        title: "Verify payment?",
+        message: `Confirm the receipt submitted for ${target.ticket_no} is legitimate and mark this ticket as paid?`,
+        confirmLabel: "Verify",
+        run: async () => {
+          await verifyPayment(target.payment_id);
+          toast.success(`${target.ticket_no} payment verified.`);
+          onRefresh();
+        },
+      });
+      case "reject-payment": return setConfirmAction({
+        title: "Reject payment submission?",
+        message: `Remove the receipt submitted for ${target.ticket_no} and revert it to Pending so the motorist can resubmit?`,
+        confirmLabel: "Reject",
+        danger: true,
+        run: async () => {
+          await rejectPayment(target.payment_id);
+          toast.success(`${target.ticket_no} payment submission rejected.`);
+          onRefresh();
+        },
+      });
       case "delete": return setConfirmAction({
         title: "Delete violation?",
         message: `Permanently delete ${target.ticket_no}? This cannot be undone.`,

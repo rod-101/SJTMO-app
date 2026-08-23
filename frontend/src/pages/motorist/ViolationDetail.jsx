@@ -1,17 +1,33 @@
-import React from "react";
+import React, { useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import { getIcon } from "../../utils/mapIcons";
+import { submitMotoristReceipt } from "../../services/api";
 import "../../App.css";
 
-export default function ViolationDetail({ violation: v, onClose }) {
+export default function ViolationDetail({ violation: v, onClose, onRefresh }) {
   const hasLocation = v.latitude && v.longitude;
 
   const statusColor =
     {
       pending: "#e65100",
+      overdue: "#c62828",
+      payment_submitted: "#1565c0",
+      paid: "#2e7d32",
       resolved: "#2e7d32",
       dismissed: "#757575",
+      disputed: "#6a1b9a",
     }[v.status] || "#666";
+
+  const statusLabel =
+    {
+      pending: "⚠️ Pending",
+      overdue: "⏰ Overdue",
+      payment_submitted: "🧾 Payment Submitted",
+      paid: "✅ Paid",
+      resolved: "✅ Resolved",
+      dismissed: "🚫 Dismissed",
+      disputed: "⚖️ Disputed",
+    }[v.status] || v.status;
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -26,13 +42,14 @@ export default function ViolationDetail({ violation: v, onClose }) {
         {/* Status Banner */}
         <div
           style={{
-            background:
-              v.status === "resolved"
-                ? "#e8f5e9"
-                : v.status === "dismissed"
-                  ? "#f5f5f5"
+            background: v.status === "resolved" || v.status === "paid"
+              ? "#e8f5e9"
+              : v.status === "dismissed"
+                ? "#f5f5f5"
+                : v.status === "payment_submitted"
+                  ? "#e3f2fd"
                   : "#fff3e0",
-            border: `1px solid ${v.status === "resolved" ? "#c8e6c9" : v.status === "dismissed" ? "#e0e0e0" : "#ffe0b2"}`,
+            border: `1px solid ${v.status === "resolved" || v.status === "paid" ? "#c8e6c9" : v.status === "dismissed" ? "#e0e0e0" : v.status === "payment_submitted" ? "#bbdefb" : "#ffe0b2"}`,
             borderRadius: 8,
             padding: "10px 14px",
             marginBottom: 16,
@@ -48,11 +65,7 @@ export default function ViolationDetail({ violation: v, onClose }) {
               textTransform: "capitalize",
             }}
           >
-            {v.status === "pending"
-              ? "⚠️ Pending"
-              : v.status === "resolved"
-                ? "✅ Resolved"
-                : "🚫 Dismissed"}
+            {statusLabel}
           </span>
           <span style={{ fontSize: "0.8rem", color: "#666" }}>
             {new Date(v.date_issued).toLocaleString()}
@@ -115,10 +128,167 @@ export default function ViolationDetail({ violation: v, onClose }) {
           </div>
         )}
 
+        {(v.status === "pending" || v.status === "overdue") && (
+          <ReceiptUploadForm
+            violation={v}
+            onSubmitted={() => {
+              onRefresh?.();
+              onClose();
+            }}
+          />
+        )}
+
+        {v.status === "payment_submitted" && (
+          <div
+            style={{
+              background: "#e3f2fd",
+              border: "1px solid #bbdefb",
+              borderRadius: 8,
+              padding: "10px 14px",
+              marginBottom: 16,
+              fontSize: "0.85rem",
+              color: "#1565c0",
+            }}
+          >
+            Your payment receipt has been submitted and is awaiting verification by the office.
+          </div>
+        )}
+
         <button className="btn btn-outline btn-full" onClick={onClose}>
           Close
         </button>
       </div>
+    </div>
+  );
+}
+
+function ReceiptUploadForm({ violation, onSubmitted }) {
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({
+    receipt_no: "",
+    amount_paid: "",
+    payment_method: "cash",
+    paid_at: new Date().toISOString().slice(0, 16),
+  });
+  const [photo, setPhoto] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+
+  if (!open) {
+    return (
+      <button
+        className="btn btn-primary btn-full"
+        style={{ marginBottom: 16 }}
+        onClick={() => setOpen(true)}
+      >
+        📤 Upload Payment Receipt
+      </button>
+    );
+  }
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!photo) {
+      setErr("Please attach a photo of the receipt.");
+      return;
+    }
+    setSaving(true);
+    setErr("");
+    try {
+      const fd = new FormData();
+      fd.append("ticket_id", violation.id);
+      fd.append("receipt_no", form.receipt_no.trim());
+      fd.append("amount_paid", form.amount_paid);
+      fd.append("payment_method", form.payment_method);
+      fd.append("paid_at", form.paid_at);
+      fd.append("photo", photo);
+      await submitMotoristReceipt(fd);
+      onSubmitted();
+    } catch (e2) {
+      setErr(e2.message || "Failed to submit receipt.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e0e0e0",
+        borderRadius: 8,
+        padding: 14,
+        marginBottom: 16,
+      }}
+    >
+      <div style={{ fontWeight: 700, marginBottom: 10 }}>Upload Payment Receipt</div>
+      {err && <div className="alert alert-error">{err}</div>}
+      <form onSubmit={submit}>
+        <div className="form-group">
+          <label className="form-label">Receipt No. (OR#)</label>
+          <input
+            className="form-input"
+            value={form.receipt_no}
+            onChange={(e) => setForm({ ...form, receipt_no: e.target.value })}
+            required
+            autoFocus
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Amount Paid</label>
+          <input
+            className="form-input"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value={form.amount_paid}
+            onChange={(e) => setForm({ ...form, amount_paid: e.target.value })}
+            required
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Payment Method</label>
+          <select
+            className="form-select"
+            value={form.payment_method}
+            onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
+          >
+            <option value="cash">Cash</option>
+            <option value="gcash">GCash</option>
+            <option value="bank_transfer">Bank Transfer</option>
+            <option value="others">Others</option>
+          </select>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Date Paid</label>
+          <input
+            className="form-input"
+            type="datetime-local"
+            value={form.paid_at}
+            onChange={(e) => setForm({ ...form, paid_at: e.target.value })}
+          />
+        </div>
+        <div className="form-group">
+          <label className="form-label">Receipt Photo</label>
+          <input
+            className="form-input"
+            type="file"
+            accept="image/*"
+            onChange={(e) => setPhoto(e.target.files?.[0] || null)}
+            required
+          />
+        </div>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button className="btn btn-outline btn-sm" type="button" onClick={() => setOpen(false)}>
+            Cancel
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            disabled={saving || !form.receipt_no.trim() || !form.amount_paid || !photo}
+          >
+            {saving ? "Submitting…" : "Submit Receipt"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

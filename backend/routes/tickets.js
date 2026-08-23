@@ -6,7 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const { requireAuth, authorize, optionalAuth } = require("../middleware/auth");
 
-const VALID_STATUSES = ["pending", "paid", "resolved", "dismissed", "disputed", "overdue"];
+const VALID_STATUSES = ["pending", "payment_submitted", "paid", "resolved", "dismissed", "disputed", "overdue"];
 
 // Evidence photos live in their own subdir, separate from the publicly-served
 // /uploads static mount used for ordinance PDFs — evidence is access-controlled.
@@ -42,6 +42,7 @@ router.get("/", requireAuth, authorize("admin", "enforcer", "motorist"), async (
     const selectCols = `
       SELECT v.*,
         pay.payment_id, pay.receipt_no, pay.amount_paid, pay.paid_at, pay.receipt_filename,
+        pay.verified, pay.submitted_by_motorist,
         COALESCE(fine.fine_total, 0) AS fine_total,
         COALESCE(fine.fine_total, 0) - COALESCE(pay.amount_paid, 0) AS balance_due
       FROM tickets v
@@ -52,10 +53,11 @@ router.get("/", requireAuth, authorize("admin", "enforcer", "motorist"), async (
       ) fine ON true
       LEFT JOIN LATERAL (
         SELECT p.id AS payment_id, p.receipt_no, p.paid_at, p.receipt_filename,
+               p.verified, p.submitted_by_motorist,
                SUM(p.amount_paid) AS amount_paid
         FROM payments p
         WHERE p.ticket_id = v.id
-        GROUP BY p.id, p.receipt_no, p.paid_at, p.receipt_filename
+        GROUP BY p.id, p.receipt_no, p.paid_at, p.receipt_filename, p.verified, p.submitted_by_motorist
         ORDER BY p.paid_at DESC
         LIMIT 1
       ) pay ON true`;

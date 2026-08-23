@@ -118,6 +118,14 @@ async function runStartupMigrations() {
            CHECK (status IN ('active','inactive','suspended'));
        END IF;
      END $$`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS submitted_by_motorist BOOLEAN NOT NULL DEFAULT FALSE`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ`,
+    `ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_status_check`,
+    `ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check`,
+    `ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
+       CHECK (status IN ('pending','payment_submitted','paid','resolved','dismissed','disputed','overdue'))`,
   ];
 
   for (const sql of migrations) {

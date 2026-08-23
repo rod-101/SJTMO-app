@@ -926,6 +926,10 @@ tr:hover td {
   background: #fff3e0;
   color: #b45309;
 }
+.badge-payment_submitted {
+  background: #e3f2fd;
+  color: #1565c0;
+}
 .badge-paid {
   background: #e8f5e9;
   color: #2e7d32;
@@ -2339,6 +2343,10 @@ tr:hover td {
 [data-theme="dark"] .badge-pending {
   background: rgba(245, 158, 11, 0.18);
   color: #fbbf24;
+}
+[data-theme="dark"] .badge-payment_submitted {
+  background: rgba(37, 99, 235, 0.18);
+  color: #93c5fd;
 }
 [data-theme="dark"] .badge-paid {
   background: rgba(16, 185, 129, 0.18);

@@ -239,6 +239,26 @@ export const uploadReceiptPhoto = (paymentId, formData) =>
 export const getReceiptPhotoUrl = (paymentId, accessToken) =>
   `${BASE_URL}/payments/${paymentId}/photo?token=${encodeURIComponent(accessToken)}`;
 
+export const submitMotoristReceipt = (formData) =>
+  authedFetch(`${BASE_URL}/payments/motorist-submit`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${getToken()}` },
+    body: formData,
+  });
+
+export const verifyPayment = (paymentId) =>
+  authedFetch(`${BASE_URL}/payments/${paymentId}/verify`, {
+    method: "POST",
+    headers: authHeadersOnly(),
+  });
+
+export const rejectPayment = (paymentId, reason) =>
+  authedFetch(`${BASE_URL}/payments/${paymentId}/reject`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({ reason }),
+  });
+
 // ── Ordinances ────────────────────────────────────────────────────────────────
 export const getOrdinances = () =>
   authedFetch(`${BASE_URL}/ordinances`, {
