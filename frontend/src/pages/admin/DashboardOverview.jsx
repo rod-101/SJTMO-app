@@ -126,6 +126,7 @@ export default function DashboardOverview({
     const today = violations.filter((v) => isToday(v.date_issued));
     const pending = violations.filter((v) => v.status === "pending");
     const overdue = violations.filter(isOverdue);
+    const submitted = violations.filter((v) => v.status === "payment_submitted");
     const resolved = violations.filter(
       (v) => v.status === "resolved" || v.status === "paid",
     );
@@ -156,6 +157,7 @@ export default function DashboardOverview({
       today: today.length,
       pending: pending.length,
       overdue: overdue.length,
+      submitted: submitted.length,
       resolved: resolved.length,
       buckets,
       breakdown,
@@ -210,6 +212,15 @@ export default function DashboardOverview({
   // ── Priority alerts ─────────────────────────────────────────────────────
   const alerts = useMemo(() => {
     const out = [];
+    if (stats.submitted > 0) {
+      out.push({
+        tone: "warning",
+        icon: "🧾",
+        title: `${stats.submitted} receipt${stats.submitted === 1 ? "" : "s"} awaiting verification`,
+        detail: "Motorist-submitted payment proof needs admin review.",
+        onClick: () => goViolations("payment_submitted"),
+      });
+    }
     if (stats.overdue > 0) {
       out.push({
         tone: "danger",
@@ -324,6 +335,16 @@ export default function DashboardOverview({
             stats.overdue > 0 ? "Needs follow-up" : "All within payment window"
           }
           onClick={() => goViolations("overdue")}
+          loading={violationsLoading}
+        />
+        <StatCard
+          label="Receipts to Review"
+          value={stats.submitted}
+          accent={stats.submitted > 0 ? "orange" : "green"}
+          hint={
+            stats.submitted > 0 ? "Motorist-submitted, unverified" : "Nothing awaiting review"
+          }
+          onClick={() => goViolations("payment_submitted")}
           loading={violationsLoading}
         />
       </div>
@@ -568,6 +589,13 @@ export default function DashboardOverview({
         >
           <span className="dash-quick-icon">⚠</span>
           <span className="dash-quick-label">View Overdue</span>
+        </button>
+        <button
+          className="dash-quick-btn"
+          onClick={() => goViolations("payment_submitted")}
+        >
+          <span className="dash-quick-icon">🧾</span>
+          <span className="dash-quick-label">Review Receipts</span>
         </button>
         <button className="dash-quick-btn" onClick={() => goUsers("enforcer")}>
           <span className="dash-quick-icon">🚓</span>

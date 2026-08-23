@@ -3147,6 +3147,7 @@ tr:hover td {
 .dash-status-dot.status-overdue  { background: var(--danger); }
 .dash-status-dot.status-disputed { background: var(--brand-orange); }
 .dash-status-dot.status-dismissed{ background: var(--text-muted); }
+.dash-status-dot.status-payment_submitted{ background: #1565c0; }
 
 .dash-activity-body {
   flex: 1;

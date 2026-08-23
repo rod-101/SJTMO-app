@@ -21,11 +21,12 @@ import "../../App.css";
 const OVERDUE_DAYS = 14;
 
 const TABS = [
-  { key: "all",      label: "All Violations" },
-  { key: "pending",  label: "Pending"        },
-  { key: "paid",     label: "Paid"           },
-  { key: "overdue",  label: "Overdue"        },
-  { key: "disputed", label: "Disputed"       },
+  { key: "all",               label: "All Violations"    },
+  { key: "pending",           label: "Pending"           },
+  { key: "payment_submitted", label: "Receipts to Review" },
+  { key: "paid",               label: "Paid"              },
+  { key: "overdue",           label: "Overdue"           },
+  { key: "disputed",          label: "Disputed"          },
 ];
 
 const STATUS_OPTIONS = [
