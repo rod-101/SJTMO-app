@@ -24,23 +24,25 @@ const TABS = [
   { key: "all",               label: "All Violations"    },
   { key: "pending",           label: "Pending"           },
   { key: "payment_submitted", label: "Receipts to Review" },
+  { key: "partially_paid",   label: "Partially Paid"    },
   { key: "paid",               label: "Paid"              },
   { key: "overdue",           label: "Overdue"           },
   { key: "disputed",          label: "Disputed"          },
 ];
 
 const STATUS_OPTIONS = [
-  "pending", "payment_submitted", "paid", "resolved", "dismissed", "disputed", "overdue",
+  "pending", "payment_submitted", "partially_paid", "paid", "resolved", "dismissed", "disputed", "overdue",
 ];
 
 const STATUS_LABEL = {
-  pending: "Pending", payment_submitted: "Payment Submitted", paid: "Paid", resolved: "Resolved",
+  pending: "Pending", payment_submitted: "Payment Submitted", partially_paid: "Partially Paid", paid: "Paid", resolved: "Resolved",
   dismissed: "Dismissed", disputed: "Disputed", overdue: "Overdue",
 };
 
 const STATUS_DESCRIPTION = {
   pending: "Violation issued; awaiting payment or review.",
   payment_submitted: "Motorist submitted a receipt photo; awaiting admin verification.",
+  partially_paid: "Some payment has been verified; balance remains due.",
   paid: "Payment received; awaiting final closure by admin.",
   resolved: "Case closed and settled — no further action needed.",
   dismissed: "Ticket voided/cancelled; no payment owed.",
@@ -271,9 +273,10 @@ function EditModal({ violation, types, onClose, onSaved, toast }) {
 
 // ─── Record Payment Modal ──────────────────────────────────────────────────────
 function RecordPaymentModal({ violation, onClose, onSaved, toast }) {
+  const balanceDue = Number(violation.balance_due ?? violation.fine_total ?? 0);
   const [form, setForm] = useState({
     receipt_no: "",
-    amount_paid: "",
+    amount_paid: balanceDue > 0 ? String(balanceDue.toFixed(2)) : "",
     payment_method: "cash",
     paid_at: new Date().toISOString().slice(0, 16),
   });
@@ -318,6 +321,9 @@ function RecordPaymentModal({ violation, onClose, onSaved, toast }) {
         <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: 16 }}>
           {violation.ticket_no} — {violation.motorist_name}
         </div>
+        <div style={{ fontSize: "0.8rem", marginBottom: 16 }}>
+          Balance due: <strong>₱{balanceDue.toFixed(2)}</strong> of ₱{Number(violation.fine_total ?? 0).toFixed(2)} fine
+        </div>
         {err && <div className="alert alert-error">{err}</div>}
         <form onSubmit={submit}>
           <div className="form-group">
@@ -330,6 +336,9 @@ function RecordPaymentModal({ violation, onClose, onSaved, toast }) {
             <input className="form-input" type="number" min="0.01" step="0.01"
               value={form.amount_paid}
               onChange={(e) => setForm({ ...form, amount_paid: e.target.value })} required />
+            <div style={{ fontSize: "0.7rem", color: "var(--text-muted)", marginTop: 4 }}>
+              Partial payments are accepted — enter less than the full balance if needed.
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">Payment Method</label>
@@ -660,7 +669,7 @@ function RowMenu({ violation: v, isAdmin, onAction, onClose }) {
       <div className="row-menu-divider" />
       {v.status === "payment_submitted" && item("Verify Payment", "verify-payment")}
       {v.status === "payment_submitted" && item("Reject Payment", "reject-payment", true)}
-      {v.status !== "paid" && v.status !== "payment_submitted" && item("Mark as Paid", "mark-paid")}
+      {v.status !== "paid" && v.status !== "payment_submitted" && item("Record Payment", "mark-paid")}
       {v.status !== "resolved"  && item("Mark as Resolved", "mark-resolved")}
       {v.status !== "dismissed" && item("Mark as Dismissed", "mark-dismissed")}
       {v.status !== "pending"   && item("Reopen",            "reopen")}

@@ -12,6 +12,7 @@ export default function ViolationDetail({ violation: v, onClose, onRefresh }) {
       pending: "#e65100",
       overdue: "#c62828",
       payment_submitted: "#1565c0",
+      partially_paid: "#00695c",
       paid: "#2e7d32",
       resolved: "#2e7d32",
       dismissed: "#757575",
@@ -23,6 +24,7 @@ export default function ViolationDetail({ violation: v, onClose, onRefresh }) {
       pending: "⚠️ Pending",
       overdue: "⏰ Overdue",
       payment_submitted: "🧾 Payment Submitted",
+      partially_paid: "💰 Partially Paid",
       paid: "✅ Paid",
       resolved: "✅ Resolved",
       dismissed: "🚫 Dismissed",
@@ -48,8 +50,10 @@ export default function ViolationDetail({ violation: v, onClose, onRefresh }) {
                 ? "#f5f5f5"
                 : v.status === "payment_submitted"
                   ? "#e3f2fd"
-                  : "#fff3e0",
-            border: `1px solid ${v.status === "resolved" || v.status === "paid" ? "#c8e6c9" : v.status === "dismissed" ? "#e0e0e0" : v.status === "payment_submitted" ? "#bbdefb" : "#ffe0b2"}`,
+                  : v.status === "partially_paid"
+                    ? "#e0f2f1"
+                    : "#fff3e0",
+            border: `1px solid ${v.status === "resolved" || v.status === "paid" ? "#c8e6c9" : v.status === "dismissed" ? "#e0e0e0" : v.status === "payment_submitted" ? "#bbdefb" : v.status === "partially_paid" ? "#b2dfdb" : "#ffe0b2"}`,
             borderRadius: 8,
             padding: "10px 14px",
             marginBottom: 16,
@@ -89,6 +93,12 @@ export default function ViolationDetail({ violation: v, onClose, onRefresh }) {
             value={new Date(v.date_issued).toLocaleDateString()}
           />
           {v.notes && <DetailRow label="Notes" value={v.notes} />}
+          {v.fine_total != null && (
+            <DetailRow label="Fine Amount" value={`₱${Number(v.fine_total).toFixed(2)}`} />
+          )}
+          {v.balance_due != null && (
+            <DetailRow label="Balance Due" value={`₱${Number(v.balance_due).toFixed(2)}`} highlight={Number(v.balance_due) > 0} />
+          )}
           {hasLocation && (
             <DetailRow
               label="Location"
@@ -128,7 +138,7 @@ export default function ViolationDetail({ violation: v, onClose, onRefresh }) {
           </div>
         )}
 
-        {(v.status === "pending" || v.status === "overdue") && (
+        {(v.status === "pending" || v.status === "overdue" || v.status === "partially_paid") && (
           <ReceiptUploadForm
             violation={v}
             onSubmitted={() => {
@@ -164,9 +174,10 @@ export default function ViolationDetail({ violation: v, onClose, onRefresh }) {
 
 function ReceiptUploadForm({ violation, onSubmitted }) {
   const [open, setOpen] = useState(false);
+  const balanceDue = Number(violation.balance_due ?? violation.fine_total ?? 0);
   const [form, setForm] = useState({
     receipt_no: "",
-    amount_paid: "",
+    amount_paid: balanceDue > 0 ? String(balanceDue.toFixed(2)) : "",
     payment_method: "cash",
     paid_at: new Date().toISOString().slice(0, 16),
   });
@@ -221,6 +232,9 @@ function ReceiptUploadForm({ violation, onSubmitted }) {
       }}
     >
       <div style={{ fontWeight: 700, marginBottom: 10 }}>Upload Payment Receipt</div>
+      <div style={{ fontSize: "0.8rem", color: "#666", marginBottom: 10 }}>
+        Balance due: ₱{balanceDue.toFixed(2)}. You may pay the full balance or a partial amount.
+      </div>
       {err && <div className="alert alert-error">{err}</div>}
       <form onSubmit={submit}>
         <div className="form-group">

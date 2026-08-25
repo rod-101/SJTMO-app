@@ -124,6 +124,19 @@ export default function Receipt({ data, onBack }) {
             <strong>{peso(data.total)}</strong>
           </div>
 
+          {data.amount_paid > 0 && (
+            <>
+              <div className="receipt-row">
+                <span>Amount Paid</span>
+                <strong>{peso(data.amount_paid)}</strong>
+              </div>
+              <div className="receipt-total-row">
+                <span>Balance Due</span>
+                <strong>{peso(data.balance)}</strong>
+              </div>
+            </>
+          )}
+
           {data.notes && (
             <div className="receipt-notes">Notes: {data.notes}</div>
           )}

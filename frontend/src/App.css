@@ -934,6 +934,10 @@ tr:hover td {
   background: #e8f5e9;
   color: #2e7d32;
 }
+.badge-partially_paid {
+  background: #e0f2f1;
+  color: #00695c;
+}
 .badge-resolved {
   background: #e8f5e9;
   color: #2e7d32;
@@ -2351,6 +2355,10 @@ tr:hover td {
 [data-theme="dark"] .badge-paid {
   background: rgba(16, 185, 129, 0.18);
   color: #34d399;
+}
+[data-theme="dark"] .badge-partially_paid {
+  background: rgba(20, 184, 166, 0.18);
+  color: #5eead4;
 }
 [data-theme="dark"] .badge-resolved {
   background: rgba(16, 185, 129, 0.18);

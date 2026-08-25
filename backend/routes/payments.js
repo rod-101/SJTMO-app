@@ -28,6 +28,30 @@ const uploadReceipt = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
 });
 
+// Computes fine_total for a ticket and total amount paid so far across all
+// verified payments (optionally excluding one payment id, e.g. one being
+// rejected). Used to decide whether a ticket is now partially_paid or paid.
+async function getFineAndPaid(client, ticketId, excludePaymentId = null) {
+  const fineResult = await client.query(
+    `SELECT COALESCE(SUM(vt.fine), 0) AS fine_total
+     FROM tickets t
+     JOIN unnest(string_to_array(t.violation_type, ',')) AS names(n) ON true
+     JOIN violation_types vt ON vt.name = trim(names.n)
+     WHERE t.id = $1`,
+    [ticketId],
+  );
+  const paidResult = await client.query(
+    `SELECT COALESCE(SUM(amount_paid), 0) AS amount_paid
+     FROM payments
+     WHERE ticket_id = $1 AND verified = TRUE AND id IS DISTINCT FROM $2`,
+    [ticketId, excludePaymentId],
+  );
+  return {
+    fineTotal: Number(fineResult.rows[0].fine_total) || 0,
+    amountPaid: Number(paidResult.rows[0].amount_paid) || 0,
+  };
+}
+
 // POST /payments - record a payment for a ticket
 router.post("/", requireAuth, authorize("admin"), async (req, res) => {
   const { ticket_id, receipt_no, amount_paid, payment_method, notes, paid_at } = req.body;
@@ -59,11 +83,11 @@ router.post("/", requireAuth, authorize("admin"), async (req, res) => {
       [ticket_id, receipt_no, amount_paid, req.user.id, payment_method || "cash", notes || null, paid_at || null],
     );
 
-    // Auto-update ticket status to paid
-    await client.query(
-      "UPDATE tickets SET status = 'paid' WHERE id = $1",
-      [ticket_id],
-    );
+    // This payment is recorded as already verified (admin-entered), so it
+    // counts toward the total immediately when deciding partially_paid vs paid.
+    const { fineTotal, amountPaid: totalPaid } = await getFineAndPaid(client, ticket_id);
+    const newStatus = totalPaid >= fineTotal && fineTotal > 0 ? "paid" : "partially_paid";
+    await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [newStatus, ticket_id]);
 
     await client.query(
       `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
@@ -122,7 +146,8 @@ router.post("/motorist-submit", requireAuth, authorize("motorist"), (req, res) =
         await client.query("ROLLBACK");
         return res.status(404).json({ error: "Ticket not found" });
       }
-      if (ticket.rows[0].status !== "pending" && ticket.rows[0].status !== "overdue") {
+      const acceptingStatuses = ["pending", "overdue", "partially_paid"];
+      if (!acceptingStatuses.includes(ticket.rows[0].status)) {
         await client.query("ROLLBACK");
         return res.status(400).json({ error: "This ticket does not accept a receipt submission right now." });
       }
@@ -194,7 +219,10 @@ router.post("/:id/verify", requireAuth, authorize("admin"), async (req, res) => 
       `UPDATE payments SET verified = TRUE, verified_by = $1, verified_at = NOW() WHERE id = $2`,
       [req.user.id, req.params.id],
     );
-    await client.query("UPDATE tickets SET status = 'paid' WHERE id = $1", [payment.rows[0].ticket_id]);
+
+    const { fineTotal, amountPaid: totalPaid } = await getFineAndPaid(client, payment.rows[0].ticket_id);
+    const newStatus = totalPaid >= fineTotal && fineTotal > 0 ? "paid" : "partially_paid";
+    await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [newStatus, payment.rows[0].ticket_id]);
 
     await client.query(
       `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
@@ -231,8 +259,11 @@ router.post("/:id/reject", requireAuth, authorize("admin"), async (req, res) => 
       return res.status(404).json({ error: "No pending motorist submission found for this payment" });
     }
 
+    const { amountPaid: remainingPaid } = await getFineAndPaid(client, payment.rows[0].ticket_id, req.params.id);
+    const revertStatus = remainingPaid > 0 ? "partially_paid" : "pending";
+
     await client.query("DELETE FROM payments WHERE id = $1", [req.params.id]);
-    await client.query("UPDATE tickets SET status = 'pending' WHERE id = $1", [payment.rows[0].ticket_id]);
+    await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [revertStatus, payment.rows[0].ticket_id]);
 
     await client.query(
       `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, old_value, new_value)

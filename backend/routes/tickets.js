@@ -6,7 +6,7 @@ const path = require("path");
 const fs = require("fs");
 const { requireAuth, authorize, optionalAuth } = require("../middleware/auth");
 
-const VALID_STATUSES = ["pending", "payment_submitted", "paid", "resolved", "dismissed", "disputed", "overdue"];
+const VALID_STATUSES = ["pending", "payment_submitted", "partially_paid", "paid", "resolved", "dismissed", "disputed", "overdue"];
 
 // Evidence photos live in their own subdir, separate from the publicly-served
 // /uploads static mount used for ordinance PDFs — evidence is access-controlled.
@@ -41,10 +41,11 @@ router.get("/", requireAuth, authorize("admin", "enforcer", "motorist"), async (
   try {
     const selectCols = `
       SELECT v.*,
-        pay.payment_id, pay.receipt_no, pay.amount_paid, pay.paid_at, pay.receipt_filename,
-        pay.verified, pay.submitted_by_motorist,
+        latest.payment_id, latest.receipt_no, latest.paid_at, latest.receipt_filename,
+        latest.verified, latest.submitted_by_motorist,
+        COALESCE(paid.amount_paid, 0) AS amount_paid,
         COALESCE(fine.fine_total, 0) AS fine_total,
-        COALESCE(fine.fine_total, 0) - COALESCE(pay.amount_paid, 0) AS balance_due
+        GREATEST(COALESCE(fine.fine_total, 0) - COALESCE(paid.amount_paid, 0), 0) AS balance_due
       FROM tickets v
       LEFT JOIN LATERAL (
         SELECT SUM(vt.fine) AS fine_total
@@ -52,15 +53,18 @@ router.get("/", requireAuth, authorize("admin", "enforcer", "motorist"), async (
         JOIN violation_types vt ON vt.name = trim(names.n)
       ) fine ON true
       LEFT JOIN LATERAL (
+        SELECT SUM(p.amount_paid) AS amount_paid
+        FROM payments p
+        WHERE p.ticket_id = v.id AND p.verified = TRUE
+      ) paid ON true
+      LEFT JOIN LATERAL (
         SELECT p.id AS payment_id, p.receipt_no, p.paid_at, p.receipt_filename,
-               p.verified, p.submitted_by_motorist,
-               SUM(p.amount_paid) AS amount_paid
+               p.verified, p.submitted_by_motorist
         FROM payments p
         WHERE p.ticket_id = v.id
-        GROUP BY p.id, p.receipt_no, p.paid_at, p.receipt_filename, p.verified, p.submitted_by_motorist
         ORDER BY p.paid_at DESC
         LIMIT 1
-      ) pay ON true`;
+      ) latest ON true`;
 
     let query = `${selectCols}
       WHERE v.is_deleted = FALSE
@@ -552,6 +556,13 @@ router.get("/lookup/:token", async (req, res) => {
     }
     const total = violation_types.reduce((sum, v) => sum + v.fine, 0);
 
+    const paidResult = await pool.query(
+      `SELECT COALESCE(SUM(amount_paid), 0) AS amount_paid FROM payments WHERE ticket_id = $1 AND verified = TRUE`,
+      [t.id],
+    );
+    const amountPaid = Number(paidResult.rows[0].amount_paid) || 0;
+    const balance = Math.max(total - amountPaid, 0);
+
     res.json({
       id: t.id,
       ticket_no: t.ticket_no,
@@ -565,6 +576,9 @@ router.get("/lookup/:token", async (req, res) => {
       vehicle_color: t.color || null,
       violation_types,
       total,
+      amount_paid: amountPaid,
+      balance: balance,
+      status: t.status,
       enforcer_name: t.enforcer_name,
       notes: t.notes || null,
       has_photo: !!t.evidence_filename,
