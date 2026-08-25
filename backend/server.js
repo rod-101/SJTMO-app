@@ -7,6 +7,10 @@ require("dotenv").config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Render sits in front of the app as a single proxy hop — trust it so req.ip
+// reflects the real client IP (used by rate limiting and refresh-token logging).
+app.set("trust proxy", 1);
+
 // ─── CORS ────────────────────────────────────────────────────────────────────
 // FRONTEND_URL is set on Render to the static site URL (e.g. https://sjtmo-app.onrender.com)
 // In local dev it falls back to allowing localhost origins.

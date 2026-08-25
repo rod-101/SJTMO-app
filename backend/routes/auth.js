@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const rateLimit = require("express-rate-limit");
 const bcrypt = require("bcryptjs");
 const pool = require("../db");
 const {
@@ -13,9 +14,18 @@ const {
 
 const SALT_ROUNDS = 10;
 
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Please try again later." },
+  keyGenerator: (req) => `${req.ip}:${(req.body?.email || "").toLowerCase()}`,
+});
+
 // POST /login
 // Body: { email: string, password: string }
-router.post("/", async (req, res) => {
+router.post("/", loginLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
