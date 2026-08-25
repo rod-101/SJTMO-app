@@ -143,8 +143,17 @@ export const uploadEvidencePhoto = (ticketId, formData) =>
     body: formData,
   });
 
-export const getEvidencePhotoUrl = (ticketId, accessToken) =>
-  `${BASE_URL}/tickets/${ticketId}/photo?token=${encodeURIComponent(accessToken)}`;
+// Fetches a photo with the staff JWT in the Authorization header (rather than
+// a token query param, which would leak into browser history, server access
+// logs, and the Referer header) and hands back a local blob: URL to render.
+async function fetchAuthedBlobUrl(url) {
+  const res = await fetch(url, { headers: authHeadersOnly() });
+  if (!res.ok) throw new Error("Failed to load photo");
+  return URL.createObjectURL(await res.blob());
+}
+
+export const getEvidencePhotoBlobUrl = (ticketId) =>
+  fetchAuthedBlobUrl(`${BASE_URL}/tickets/${ticketId}/photo`);
 
 export const updateViolationStatus = (id, status) =>
   authedFetch(`${BASE_URL}/tickets/${id}/status`, {
@@ -253,8 +262,8 @@ export const uploadReceiptPhoto = (paymentId, formData) =>
     body: formData,
   });
 
-export const getReceiptPhotoUrl = (paymentId, accessToken) =>
-  `${BASE_URL}/payments/${paymentId}/photo?token=${encodeURIComponent(accessToken)}`;
+export const getReceiptPhotoBlobUrl = (paymentId) =>
+  fetchAuthedBlobUrl(`${BASE_URL}/payments/${paymentId}/photo`);
 
 export const submitMotoristReceipt = (formData) =>
   authedFetch(`${BASE_URL}/payments/motorist-submit`, {

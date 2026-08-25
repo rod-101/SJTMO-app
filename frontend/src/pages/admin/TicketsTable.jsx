@@ -7,10 +7,10 @@ import {
   addViolationType,
   updateViolationType,
   deleteViolationType,
-  getEvidencePhotoUrl,
+  getEvidencePhotoBlobUrl,
   recordPayment,
   uploadReceiptPhoto,
-  getReceiptPhotoUrl,
+  getReceiptPhotoBlobUrl,
   verifyPayment,
   rejectPayment,
 } from "../../services/api";
@@ -163,6 +163,39 @@ function Field({ label, value }) {
       <div className="user-field-label">{label}</div>
       <div className="user-field-value">{value}</div>
     </div>
+  );
+}
+
+// Loads a ticket/payment photo via an authenticated fetch (JWT in the
+// Authorization header) instead of a token query param, and renders it as an
+// object URL so no secret ever appears in the address bar, browser history,
+// server access logs, or a Referer header.
+function AuthedPhoto({ kind, id, alt, style }) {
+  const [blobUrl, setBlobUrl] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let currentUrl = null;
+    const load = kind === "evidence" ? getEvidencePhotoBlobUrl : getReceiptPhotoBlobUrl;
+    load(id).then((url) => {
+      if (cancelled) {
+        URL.revokeObjectURL(url);
+        return;
+      }
+      currentUrl = url;
+      setBlobUrl(url);
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
+    };
+  }, [kind, id]);
+
+  if (!blobUrl) return null;
+  return (
+    <a href={blobUrl} target="_blank" rel="noopener noreferrer">
+      <img src={blobUrl} alt={alt} style={style} />
+    </a>
   );
 }
 
@@ -556,13 +589,12 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
 
           <div className="user-panel-section-title">Evidence</div>
           {v.evidence_filename ? (
-            <a href={getEvidencePhotoUrl(v.id, v.access_token)} target="_blank" rel="noopener noreferrer">
-              <img
-                src={getEvidencePhotoUrl(v.id, v.access_token)}
-                alt="Evidence"
-                style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginBottom: 14 }}
-              />
-            </a>
+            <AuthedPhoto
+              kind="evidence"
+              id={v.id}
+              alt="Evidence"
+              style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginBottom: 14 }}
+            />
           ) : (
             <div className="empty-state" style={{ padding: "12px 0" }}>
               <div className="empty-state-text">No evidence photo uploaded.</div>
@@ -594,13 +626,12 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
                 </div>
               )}
               {v.receipt_filename && v.payment_id && (
-                <a href={getReceiptPhotoUrl(v.payment_id, v.access_token)} target="_blank" rel="noopener noreferrer">
-                  <img
-                    src={getReceiptPhotoUrl(v.payment_id, v.access_token)}
-                    alt="Receipt"
-                    style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginTop: 8 }}
-                  />
-                </a>
+                <AuthedPhoto
+                  kind="receipt"
+                  id={v.payment_id}
+                  alt="Receipt"
+                  style={{ width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginTop: 8 }}
+                />
               )}
               {v.status === "payment_submitted" && v.submitted_by_motorist && (
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
