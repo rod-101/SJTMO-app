@@ -43,13 +43,30 @@ function forceLogout() {
   window.dispatchEvent(new Event("auth:expired"));
 }
 
+// Shared in-flight refresh promise: concurrent 401s (e.g. several requests
+// firing on page mount) must not each call /login/refresh independently —
+// the refresh token is single-use, so a second caller presenting the same
+// (already-rotated) token would be flagged as reuse and get every session
+// on the account revoked. Routing all concurrent refreshes through the same
+// promise ensures only one /login/refresh call happens per expiry event.
+let refreshPromise = null;
+
+function refreshOnce() {
+  if (!refreshPromise) {
+    refreshPromise = refreshToken().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
 // Wraps an authenticated fetch: on 401, tries a silent refresh once and
 // retries the original request before giving up and forcing a logout.
 async function authedFetch(url, options) {
   let res = await fetch(url, options);
   if (res.status === 401) {
     try {
-      const { token } = await refreshToken();
+      const { token } = await refreshOnce();
       setToken(token);
       const retryOptions = { ...options, headers: { ...options.headers } };
       if (retryOptions.headers.Authorization) {
