@@ -130,6 +130,24 @@ async function runStartupMigrations() {
     `ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check`,
     `ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
        CHECK (status IN ('pending','payment_submitted','paid','resolved','dismissed','disputed','overdue'))`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified    BOOLEAN     DEFAULT FALSE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ`,
+    `UPDATE users SET email_verified = TRUE, email_verified_at = created_at
+       WHERE status = 'active' AND email_verified = FALSE`,
+    `ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check`,
+    `ALTER TABLE users ADD CONSTRAINT users_status_check
+       CHECK (status IN ('active','inactive','suspended','pending_verification'))`,
+    `ALTER TABLE users ALTER COLUMN status SET DEFAULT 'pending_verification'`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_ci ON users (LOWER(email))`,
+    `CREATE TABLE IF NOT EXISTS email_verification_tokens (
+       id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+       user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       token_hash  VARCHAR(64) NOT NULL UNIQUE,
+       expires_at  TIMESTAMPTZ NOT NULL,
+       used_at     TIMESTAMPTZ,
+       created_at  TIMESTAMPTZ DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_evt_user ON email_verification_tokens(user_id)`,
   ];
 
   for (const sql of migrations) {

@@ -6,6 +6,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import LandingPage from "./pages/landing/LandingPage";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import VerifyEmail from "./pages/auth/VerifyEmail";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import EnforcerDashboard from "./pages/enforcer/EnforcerDashboard";
 import MotoristDashboard from "./pages/motorist/MotoristDashboard";
@@ -56,6 +57,7 @@ function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/" element={<HomeRoute />} />
           <Route path="/receipt/:token" element={<PublicReceipt />} />
           <Route

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { login } from "../../services/api";
+import { login, resendVerification } from "../../services/api";
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const SignalIcon = () => (
@@ -59,6 +59,8 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resendStatus, setResendStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
   const { loginUser } = useAuth();
@@ -67,6 +69,8 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setNeedsVerification(false);
+    setResendStatus("");
 
     if (!email.trim()) {
       setError("Enter your email address.");
@@ -82,8 +86,19 @@ export default function Login() {
       else navigate("/motorist");
     } catch (err) {
       setError(err.message || "Login failed. Please check your credentials.");
+      if (err.code === "EMAIL_NOT_VERIFIED") setNeedsVerification(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    setResendStatus("sending");
+    try {
+      await resendVerification(email.trim());
+      setResendStatus("If that account exists, a verification email was sent.");
+    } catch (err) {
+      setResendStatus(err.message || "Something went wrong. Please try again.");
     }
   };
 
@@ -114,6 +129,22 @@ export default function Login() {
               />
             </svg>
             <span>{error}</span>
+          </div>
+        )}
+
+        {needsVerification && (
+          <div style={{ marginBottom: 16 }}>
+            <button
+              type="button"
+              className="btn btn-full"
+              onClick={handleResend}
+              disabled={resendStatus === "sending"}
+            >
+              {resendStatus === "sending" ? "Sending…" : "Resend verification email"}
+            </button>
+            {resendStatus && resendStatus !== "sending" && (
+              <p className="login-footer">{resendStatus}</p>
+            )}
           </div>
         )}
 

@@ -11,8 +11,16 @@ const {
   REFRESH_COOKIE_NAME,
   refreshCookieOptions,
 } = require("../services/jwt");
+const {
+  createVerificationToken,
+  invalidateOutstandingTokens,
+  findValidToken,
+  markTokenUsed,
+  sendVerificationEmail,
+} = require("../services/emailVerification");
 
 const SALT_ROUNDS = 10;
+const MIN_REGISTRATION_AGE = 16;
 
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -22,6 +30,32 @@ const loginLimiter = rateLimit({
   message: { error: "Too many login attempts. Please try again later." },
   keyGenerator: (req) => `${req.ip}:${(req.body?.email || "").toLowerCase()}`,
 });
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many registration attempts. Please try again later." },
+  keyGenerator: (req) => req.ip,
+});
+
+const resendVerificationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests. Please try again later." },
+  keyGenerator: (req) => (req.body?.email || "").toLowerCase() || req.ip,
+});
+
+function computeAge(birthdayDate) {
+  const today = new Date();
+  let age = today.getFullYear() - birthdayDate.getFullYear();
+  const m = today.getMonth() - birthdayDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthdayDate.getDate())) age--;
+  return age;
+}
 
 // POST /login
 // Body: { email: string, password: string }
@@ -65,6 +99,14 @@ router.post("/", loginLimiter, async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials." });
     }
 
+    if (user.status === "pending_verification") {
+      return res.status(403).json({
+        error: {
+          code: "EMAIL_NOT_VERIFIED",
+          message: "Please verify your email before logging in.",
+        },
+      });
+    }
     if (user.status === "suspended") {
       return res
         .status(403)
@@ -99,9 +141,10 @@ router.post("/", loginLimiter, async (req, res) => {
   }
 });
 
-// POST /login/register — self-register a motorist account and auto-login.
+// POST /login/register — self-register a motorist account. The account starts
+// pending_verification and cannot log in until the emailed link is confirmed.
 // Body: { name, email, password, birthday }
-router.post("/register", async (req, res) => {
+router.post("/register", registerLimiter, async (req, res) => {
   const { name, email, password, birthday } = req.body;
 
   if (!name || !email || !password || !birthday) {
@@ -130,10 +173,17 @@ router.post("/register", async (req, res) => {
   if (Number.isNaN(birthdayDate.getTime()) || birthdayDate > new Date()) {
     return res.status(400).json({ error: "Enter a valid birthday." });
   }
+  if (computeAge(birthdayDate) < MIN_REGISTRATION_AGE) {
+    return res.status(400).json({
+      error: `You must be at least ${MIN_REGISTRATION_AGE} years old to register.`,
+    });
+  }
 
+  const client = await pool.connect();
   try {
+    await client.query("BEGIN");
     const hashed = await bcrypt.hash(password, SALT_ROUNDS);
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO users (name, email, password, role, birthday)
        VALUES ($1, $2, $3, 'motorist', $4)
        RETURNING id, name, email, role, status, birthday, last_login,
@@ -142,24 +192,107 @@ router.post("/register", async (req, res) => {
     );
     const user = result.rows[0];
 
-    const accessToken = signAccessToken(user);
-    const { raw: refreshToken } = await issueRefreshToken(pool, {
-      userId: user.id,
-      userAgent: req.headers["user-agent"],
-      ip: req.ip,
-    });
-    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
-      ...refreshCookieOptions(),
-      path: "/login",
-    });
+    const rawToken = await createVerificationToken(client, user.id);
+    await client.query("COMMIT");
 
-    res.status(201).json({ success: true, user, token: accessToken });
+    sendVerificationEmail(user, rawToken).catch((err) =>
+      console.error("Failed to send verification email:", err),
+    );
+
+    res.status(201).json({
+      success: true,
+      message: "Check your email to verify your account before signing in.",
+      email: user.email,
+    });
   } catch (err) {
+    await client.query("ROLLBACK");
     if (err.code === "23505") {
       return res.status(409).json({ error: "Email is already registered." });
     }
     console.error("Register error:", err);
     res.status(500).json({ error: "Server error. Please try again." });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /login/verify-email — confirms a registration email link.
+// Body: { token }
+router.post("/verify-email", async (req, res) => {
+  const { token } = req.body;
+  if (typeof token !== "string" || !token) {
+    return res.status(400).json({ error: "Verification token is required." });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const row = await findValidToken(client, token);
+    if (!row) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ error: "This verification link is invalid or has expired." });
+    }
+
+    await client.query(
+      `UPDATE users
+       SET email_verified = TRUE, email_verified_at = NOW(),
+           status = CASE WHEN status = 'pending_verification' THEN 'active' ELSE status END
+       WHERE id = $1`,
+      [row.user_id],
+    );
+    await markTokenUsed(client, row.id);
+    await client.query("COMMIT");
+
+    res.json({ success: true, message: "Email verified. You can now sign in." });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Verify email error:", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  } finally {
+    client.release();
+  }
+});
+
+// POST /login/resend-verification — issues a fresh verification link.
+// Body: { email }
+router.post("/resend-verification", resendVerificationLimiter, async (req, res) => {
+  const { email } = req.body;
+  const generic = {
+    success: true,
+    message: "If that account exists, a verification email was sent.",
+  };
+  if (typeof email !== "string" || !email) {
+    return res.json(generic);
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const result = await client.query(
+      `SELECT id, name, email, status FROM users WHERE email = $1`,
+      [normalizedEmail],
+    );
+    const user = result.rows[0];
+    if (user && user.status === "pending_verification") {
+      await invalidateOutstandingTokens(client, user.id);
+      const rawToken = await createVerificationToken(client, user.id);
+      await client.query("COMMIT");
+      sendVerificationEmail(user, rawToken).catch((err) =>
+        console.error("Failed to send verification email:", err),
+      );
+    } else {
+      await client.query("ROLLBACK");
+    }
+    res.json(generic);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Resend verification error:", err);
+    res.json(generic);
+  } finally {
+    client.release();
   }
 });
 

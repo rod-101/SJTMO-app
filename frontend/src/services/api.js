@@ -28,7 +28,11 @@ const handleResponse = async (res) => {
   if (!res.ok) {
     const msg =
       typeof data.error === "object" ? data.error.message : data.error;
-    throw new Error(msg || "Request failed");
+    const err = new Error(msg || "Request failed");
+    if (typeof data.error === "object" && data.error.code) {
+      err.code = data.error.code;
+    }
+    throw err;
   }
   return data;
 };
@@ -98,6 +102,20 @@ export const register = (data) =>
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     body: JSON.stringify(data),
+  }).then(handleResponse);
+
+export const verifyEmail = (token) =>
+  fetch(`${BASE_URL}/login/verify-email`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  }).then(handleResponse);
+
+export const resendVerification = (email) =>
+  fetch(`${BASE_URL}/login/resend-verification`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
   }).then(handleResponse);
 
 export const refreshToken = () =>

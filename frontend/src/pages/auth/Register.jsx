@@ -1,7 +1,16 @@
 import React, { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { useAuth } from "../../context/AuthContext";
+import { Link } from "react-router-dom";
 import { register } from "../../services/api";
+
+const MIN_REGISTRATION_AGE = 16;
+
+function computeAge(birthdayDate) {
+  const today = new Date();
+  let age = today.getFullYear() - birthdayDate.getFullYear();
+  const m = today.getMonth() - birthdayDate.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birthdayDate.getDate())) age--;
+  return age;
+}
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 const SignalIcon = () => (
@@ -65,9 +74,7 @@ export default function Register() {
   const [showPwd, setShowPwd] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const { loginUser } = useAuth();
-  const navigate = useNavigate();
+  const [registered, setRegistered] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -89,8 +96,13 @@ export default function Register() {
       setError("Enter your birthday.");
       return;
     }
-    if (new Date(birthday) > new Date()) {
+    const birthdayDate = new Date(birthday);
+    if (birthdayDate > new Date()) {
       setError("Birthday cannot be in the future.");
+      return;
+    }
+    if (computeAge(birthdayDate) < MIN_REGISTRATION_AGE) {
+      setError(`You must be at least ${MIN_REGISTRATION_AGE} years old to register.`);
       return;
     }
     if (password !== confirmPassword) {
@@ -100,20 +112,42 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const { user, token } = await register({
+      await register({
         name: name.trim(),
         email: email.trim(),
         password,
         birthday,
       });
-      loginUser(user, token);
-      navigate("/motorist");
+      setRegistered(true);
     } catch (err) {
       setError(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (registered) {
+    return (
+      <div className="login-page">
+        <div className="login-card">
+          <div className="login-brand">
+            <div className="login-brand-icon">
+              <SignalIcon />
+            </div>
+            <h1 className="login-title">SJTMO</h1>
+            <p className="login-subtitle">San Jose Traffic Management Office</p>
+          </div>
+          <p>
+            Check your email at <strong>{email.trim()}</strong> to verify your
+            account before signing in.
+          </p>
+          <p className="login-footer">
+            <Link to="/login">Back to Sign In</Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page">

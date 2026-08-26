@@ -38,16 +38,38 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMPTZ DEFAULT NOW
 ALTER TABLE users ADD COLUMN IF NOT EXISTS status        VARCHAR(20) DEFAULT 'active';
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login    TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT         DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified    BOOLEAN     DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ;
 
 -- Backfill status from legacy is_active flag
 UPDATE users SET status = CASE WHEN is_active = FALSE THEN 'inactive' ELSE 'active' END
   WHERE status IS NULL;
 
+-- Existing accounts predate email verification — grandfather them in so they
+-- aren't retroactively locked out.
+UPDATE users SET email_verified = TRUE, email_verified_at = created_at
+  WHERE status = 'active' AND email_verified = FALSE;
+
 ALTER TABLE users DROP CONSTRAINT IF EXISTS users_status_check;
 ALTER TABLE users ADD CONSTRAINT users_status_check
-  CHECK (status IN ('active','inactive','suspended'));
+  CHECK (status IN ('active','inactive','suspended','pending_verification'));
+
+ALTER TABLE users ALTER COLUMN status SET DEFAULT 'pending_verification';
 
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_ci ON users (LOWER(email));
+
+-- ── Email verification tokens ───────────────────────────────
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash  VARCHAR(64) NOT NULL UNIQUE,
+    expires_at  TIMESTAMPTZ NOT NULL,
+    used_at     TIMESTAMPTZ,
+    created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_evt_user ON email_verification_tokens(user_id);
 
 -- Treasury role removed; reassign any lingering treasury accounts to enforcer
 -- before tightening the CHECK constraint, or the ALTER below would fail.
