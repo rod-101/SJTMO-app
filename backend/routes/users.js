@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
 const pool = require("../db");
+const { requireAuth, authorize } = require("../middleware/auth");
 
 const SALT_ROUNDS = 10;
 const VALID_ROLES = new Set(["admin", "enforcer", "motorist"]);
@@ -12,21 +13,11 @@ const ROLE_RANK = { motorist: 1, enforcer: 2, admin: 3 };
 const SAFE_USER_COLUMNS = `id, name, email, role, status,
   last_login, created_at, updated_at`;
 
-// Look up the actor's role to enforce hierarchy. The actor is identified by
-// X-Actor-Id header sent from the admin client.
-const getActor = async (req) => {
-  const id = req.header("X-Actor-Id");
-  if (!id) return null;
-  try {
-    const r = await pool.query(
-      "SELECT id, name, role FROM users WHERE id = $1",
-      [id],
-    );
-    return r.rows[0] || null;
-  } catch {
-    return null;
-  }
-};
+// Every route below requires an authenticated admin — this file used to trust
+// a client-supplied X-Actor-Id header with no proof of identity, which let an
+// anonymous request create an admin account. requireAuth verifies a signed
+// JWT and authorize('admin') enforces the role.
+router.use(requireAuth, authorize("admin"));
 
 const audit = async (
   client,
@@ -87,13 +78,7 @@ router.post("/", async (req, res) => {
       .json({ error: "Password must be at least 8 characters." });
   }
 
-  const actor = await getActor(req);
-  // Only an admin (or no actor in unauthenticated bootstrap) can create admins.
-  if (role === "admin" && actor && actor.role !== "admin") {
-    return res
-      .status(403)
-      .json({ error: "Only admins can create admin accounts." });
-  }
+  const actor = req.user;
 
   const client = await pool.connect();
   try {
@@ -163,7 +148,7 @@ router.patch("/:id", async (req, res) => {
     return res.status(400).json({ error: "No updates provided." });
   }
 
-  const actor = await getActor(req);
+  const actor = req.user;
 
   const client = await pool.connect();
   try {
@@ -241,7 +226,7 @@ router.post("/:id/reset-password", async (req, res) => {
       .status(400)
       .json({ error: "Password must be at least 8 characters." });
   }
-  const actor = await getActor(req);
+  const actor = req.user;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -288,7 +273,7 @@ router.post("/:id/reset-password", async (req, res) => {
 // Bumps the user's token_version, invalidating any sessions that check it.
 router.post("/:id/force-logout", async (req, res) => {
   const { id } = req.params;
-  const actor = await getActor(req);
+  const actor = req.user;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -361,7 +346,7 @@ router.get("/:id/activity", async (req, res) => {
 // ─── DELETE /users/:id ────────────────────────────────────────────────────────
 router.delete("/:id", async (req, res) => {
   const { id } = req.params;
-  const actor = await getActor(req);
+  const actor = req.user;
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
