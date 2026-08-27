@@ -69,6 +69,7 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [birthday, setBirthday] = useState("");
+  const [licenseNo, setLicenseNo] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPwd, setShowPwd] = useState(false);
@@ -102,7 +103,9 @@ export default function Register() {
       return;
     }
     if (computeAge(birthdayDate) < MIN_REGISTRATION_AGE) {
-      setError(`You must be at least ${MIN_REGISTRATION_AGE} years old to register.`);
+      setError(
+        `You must be at least ${MIN_REGISTRATION_AGE} years old to register.`,
+      );
       return;
     }
     if (password !== confirmPassword) {
@@ -117,6 +120,7 @@ export default function Register() {
         email: email.trim(),
         password,
         birthday,
+        license_no: licenseNo.trim() || undefined,
       });
       setRegistered(true);
     } catch (err) {
@@ -241,6 +245,25 @@ export default function Register() {
               required
               autoComplete="bday"
               max={new Date().toISOString().slice(0, 10)}
+            />
+          </div>
+
+          {/* License Number (optional) */}
+          <div className="form-group">
+            <label className="form-label" htmlFor="license_no">
+              License Number <span style={{ fontWeight: 400 }}>(optional)</span>
+            </label>
+            <input
+              id="license_no"
+              className="form-input"
+              type="text"
+              placeholder="e.g. N03-18-123456"
+              value={licenseNo}
+              onChange={(e) => {
+                setLicenseNo(e.target.value);
+                setError("");
+              }}
+              autoComplete="off"
             />
           </div>
 

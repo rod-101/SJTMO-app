@@ -178,7 +178,7 @@ router.post("/", loginLimiter, async (req, res) => {
 // pending_verification and cannot log in until the emailed link is confirmed.
 // Body: { name, email, password, birthday }
 router.post("/register", registerLimiter, async (req, res) => {
-  const { name, email, password, birthday } = req.body;
+  const { name, email, password, birthday, license_no } = req.body;
 
   if (!name || !email || !password || !birthday) {
     return res
@@ -224,6 +224,19 @@ router.post("/register", registerLimiter, async (req, res) => {
       [name.trim(), normalizedEmail, hashed, birthday],
     );
     const user = result.rows[0];
+
+    if (typeof license_no === "string" && license_no.trim()) {
+      const match = await client.query(
+        `SELECT id FROM motorists WHERE lower(license_no) = lower($1) AND user_id IS NULL LIMIT 2`,
+        [license_no.trim()],
+      );
+      if (match.rows.length === 1) {
+        await client.query(`UPDATE motorists SET user_id = $1 WHERE id = $2`, [
+          user.id,
+          match.rows[0].id,
+        ]);
+      }
+    }
 
     const rawToken = await createVerificationToken(client, user.id);
     await client.query("COMMIT");
