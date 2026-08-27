@@ -7,6 +7,7 @@ import SystemLogs from "./SystemLogs";
 import OrdinancesPanel from "./OrdinancesPanel";
 import DashboardOverview from "./DashboardOverview";
 import ReportsPanel from "./ReportsPanel";
+import EnforcerTracking from "./EnforcerTracking";
 import { useAuth } from "../../context/AuthContext";
 import { getViolations } from "../../services/api";
 import "../../App.css";
@@ -205,9 +206,7 @@ export default function AdminDashboard() {
 
           {tab === "reports" && <ReportsPanel />}
 
-          {tab === "enforcer-tracking" && (
-            <ComingSoon title="Enforcer Tracking" icon="🚓" />
-          )}
+          {tab === "enforcer-tracking" && <EnforcerTracking />}
 
           {tab === "logs" && <SystemLogs />}
 

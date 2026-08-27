@@ -406,3 +406,75 @@ export const getReport = ({ period, year, month }) => {
 
 export const getReportPeriods = () =>
   authedFetch(`${BASE_URL}/reports/periods`, { headers: authHeadersOnly() });
+
+// ── Enforcer tracking & patrol assignment ─────────────────────────────────────
+export const getEnforcerTracking = (days = 30) =>
+  authedFetch(`${BASE_URL}/enforcers/tracking?days=${days}`, {
+    headers: authHeadersOnly(),
+  });
+
+export const getEnforcerActivity = (id, limit = 50) =>
+  authedFetch(`${BASE_URL}/enforcers/${id}/tracking?limit=${limit}`, {
+    headers: authHeadersOnly(),
+  });
+
+export const getPatrolAreas = () =>
+  authedFetch(`${BASE_URL}/enforcers/areas`, { headers: authHeadersOnly() });
+
+export const createPatrolArea = (data) =>
+  authedFetch(`${BASE_URL}/enforcers/areas`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+
+export const deletePatrolArea = (id) =>
+  authedFetch(`${BASE_URL}/enforcers/areas/${id}`, {
+    method: "DELETE",
+    headers: authHeadersOnly(),
+  });
+
+export const getPatrolAssignments = (params = {}) => {
+  const query = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    ),
+  ).toString();
+  return authedFetch(
+    `${BASE_URL}/enforcers/assignments${query ? `?${query}` : ""}`,
+    { headers: authHeadersOnly() },
+  );
+};
+
+export const createPatrolAssignment = (data) =>
+  authedFetch(`${BASE_URL}/enforcers/assignments`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+
+export const updatePatrolAssignment = (id, data) =>
+  authedFetch(`${BASE_URL}/enforcers/assignments/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+
+export const deletePatrolAssignment = (id) =>
+  authedFetch(`${BASE_URL}/enforcers/assignments/${id}`, {
+    method: "DELETE",
+    headers: authHeadersOnly(),
+  });
+
+// Enforcer-side: own assignments.
+export const getMyPatrolAssignments = () =>
+  authedFetch(`${BASE_URL}/enforcers/me/assignments`, {
+    headers: authHeadersOnly(),
+  });
+
+export const updateMyPatrolAssignment = (id, status) =>
+  authedFetch(`${BASE_URL}/enforcers/me/assignments/${id}`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify({ status }),
+  });

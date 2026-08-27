@@ -280,6 +280,45 @@ CREATE TABLE IF NOT EXISTS ordinances (
 
 ALTER TABLE ordinances ADD COLUMN IF NOT EXISTS uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL;
 
+-- ── Patrol areas & assignments ───────────────────────────────
+CREATE TABLE IF NOT EXISTS patrol_areas (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    name        VARCHAR(120) NOT NULL UNIQUE,
+    description TEXT,
+    latitude    DECIMAL(10,8),
+    longitude   DECIMAL(11,8),
+    created_at  TIMESTAMPTZ  DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ  DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS patrol_assignments (
+    id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    enforcer_id UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    area_id     UUID        NOT NULL REFERENCES patrol_areas(id) ON DELETE CASCADE,
+    shift_date  DATE        NOT NULL,
+    shift_start TIME,
+    shift_end   TIME,
+    notes       TEXT,
+    status      VARCHAR(20) NOT NULL DEFAULT 'assigned'
+                CHECK (status IN ('assigned','acknowledged','completed','cancelled')),
+    assigned_by UUID        REFERENCES users(id) ON DELETE SET NULL,
+    created_at  TIMESTAMPTZ DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- One posting per enforcer per area per day — re-assigning the same slot is an
+-- edit, not a second row.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_patrol_assign_unique
+  ON patrol_assignments(enforcer_id, area_id, shift_date);
+CREATE INDEX IF NOT EXISTS idx_patrol_assign_date     ON patrol_assignments(shift_date);
+CREATE INDEX IF NOT EXISTS idx_patrol_assign_enforcer ON patrol_assignments(enforcer_id);
+
+INSERT INTO patrol_areas (name, description)
+VALUES ('Poblacion', 'Town center and public market'),
+       ('National Highway', 'Main highway stretch'),
+       ('Terminal Area', 'Jeepney and tricycle terminal')
+ON CONFLICT (name) DO NOTHING;
+
 -- ── Audit log ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_logs (
     id           BIGSERIAL    PRIMARY KEY,
