@@ -1,0 +1,275 @@
+/* ── Reports panel ───────────────────────────────────────────────────────────
+   The on-screen panel reuses the admin card/table look. Everything inside
+   .report-doc is also the print surface — @media print hides the rest of the
+   app and lets the browser's "Save as PDF" render this document directly. */
+
+.report-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.report-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-toolbar-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-light);
+}
+
+.report-toolbar-spacer {
+  flex: 1;
+}
+
+/* ── Document ─────────────────────────────────────────────────────────────── */
+.report-doc {
+  background: #fff;
+  color: #111;
+  border-radius: 10px;
+  padding: 28px 30px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.report-doc-head {
+  text-align: center;
+  border-bottom: 2px solid #111;
+  padding-bottom: 14px;
+  margin-bottom: 18px;
+}
+
+.report-org {
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.report-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 4px 0 2px;
+}
+
+.report-period {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.report-meta {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  font-size: 0.74rem;
+  color: #666;
+  margin-top: 8px;
+}
+
+.report-section {
+  margin-top: 22px;
+  break-inside: avoid;
+}
+
+.report-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #111;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 5px;
+  margin-bottom: 10px;
+}
+
+/* ── Stat grid ────────────────────────────────────────────────────────────── */
+.report-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.report-stat {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.report-stat-value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.report-stat-label {
+  font-size: 0.74rem;
+  color: #555;
+  margin-top: 2px;
+}
+
+.report-stat-hint {
+  font-size: 0.68rem;
+  color: #888;
+  margin-top: 3px;
+}
+
+.report-delta-up { color: #1a7f37; font-weight: 600; }
+.report-delta-down { color: #b42318; font-weight: 600; }
+.report-delta-flat { color: #777; font-weight: 600; }
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.report-table th,
+.report-table td {
+  border: 1px solid #ddd;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.report-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #333;
+}
+
+.report-table td.num,
+.report-table th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.report-table tfoot td {
+  font-weight: 700;
+  background: #f9fafb;
+}
+
+.report-empty {
+  font-size: 0.8rem;
+  color: #777;
+  padding: 10px 2px;
+  font-style: italic;
+}
+
+/* ── Inline bar chart ─────────────────────────────────────────────────────── */
+.report-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 130px;
+  padding-top: 6px;
+}
+
+.report-chart-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.report-chart-bar {
+  width: 100%;
+  max-width: 34px;
+  background: #2563eb;
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+}
+
+.report-chart-count {
+  font-size: 0.62rem;
+  color: #444;
+  margin-bottom: 2px;
+}
+
+.report-chart-label {
+  font-size: 0.6rem;
+  color: #666;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.report-signatures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 30px;
+  margin-top: 34px;
+}
+
+.report-sign-line {
+  border-top: 1px solid #333;
+  padding-top: 5px;
+  font-size: 0.74rem;
+  text-align: center;
+  color: #444;
+}
+
+.report-footnote {
+  margin-top: 22px;
+  padding-top: 10px;
+  border-top: 1px dashed #ccc;
+  font-size: 0.68rem;
+  color: #777;
+  line-height: 1.5;
+}
+
+/* ── Print ────────────────────────────────────────────────────────────────── */
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .report-print-area,
+  .report-print-area * {
+    visibility: visible;
+  }
+  .report-print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  .report-doc {
+    box-shadow: none;
+    border-radius: 0;
+    padding: 0;
+    background: #fff;
+    color: #000;
+  }
+  .report-section {
+    page-break-inside: avoid;
+  }
+  .report-chart-bar {
+    /* Keep the bars solid rather than hollow in browsers that strip
+       backgrounds when "background graphics" is off. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .report-table th {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

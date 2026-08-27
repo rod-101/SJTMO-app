@@ -6,6 +6,7 @@ import UserManagement from "./UserManagement";
 import SystemLogs from "./SystemLogs";
 import OrdinancesPanel from "./OrdinancesPanel";
 import DashboardOverview from "./DashboardOverview";
+import ReportsPanel from "./ReportsPanel";
 import { useAuth } from "../../context/AuthContext";
 import { getViolations } from "../../services/api";
 import "../../App.css";
@@ -30,6 +31,7 @@ const NAV_SECTIONS = [
     items: [
       { id: "users", icon: "👥", label: "Users" },
       { id: "ordinances", icon: "📌", label: "Ordinances" },
+      { id: "reports", icon: "🧾", label: "Reports" },
     ],
   },
   {
@@ -200,6 +202,8 @@ export default function AdminDashboard() {
           {tab === "users" && <UserManagement violations={violations} />}
 
           {tab === "ordinances" && <OrdinancesPanel />}
+
+          {tab === "reports" && <ReportsPanel />}
 
           {tab === "enforcer-tracking" && (
             <ComingSoon title="Enforcer Tracking" icon="🚓" />

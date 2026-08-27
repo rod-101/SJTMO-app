@@ -393,3 +393,16 @@ export const getSystemLogs = (params = {}) => {
 
 export const getSystemLogActions = () =>
   authedFetch(`${BASE_URL}/logs/actions`, { headers: authHeadersOnly() });
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+export const getReport = ({ period, year, month }) => {
+  const query = new URLSearchParams(
+    Object.fromEntries(
+      Object.entries({ period, year, month }).filter(([, v]) => v !== "" && v != null),
+    ),
+  ).toString();
+  return authedFetch(`${BASE_URL}/reports?${query}`, { headers: authHeadersOnly() });
+};
+
+export const getReportPeriods = () =>
+  authedFetch(`${BASE_URL}/reports/periods`, { headers: authHeadersOnly() });

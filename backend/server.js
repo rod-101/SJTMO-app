@@ -38,6 +38,7 @@ const paymentRoutes = require("./routes/payments");
 const motoristRoutes = require("./routes/motorists");
 const vehicleRoutes = require("./routes/vehicles");
 const logRoutes = require("./routes/logs");
+const reportRoutes = require("./routes/reports");
 
 app.use("/login", authRoutes);
 app.use("/tickets", ticketRoutes);
@@ -47,6 +48,7 @@ app.use("/payments", paymentRoutes);
 app.use("/motorists", motoristRoutes);
 app.use("/vehicles", vehicleRoutes);
 app.use("/logs", logRoutes);
+app.use("/reports", reportRoutes);
 
 // Health check — useful for Render uptime monitoring
 app.get("/health", (req, res) => {
