@@ -52,6 +52,12 @@ async function getFineAndPaid(client, ticketId, excludePaymentId = null) {
   };
 }
 
+// Compares peso amounts in integer cents so float rounding (e.g. 2999.99
+// stored as 2999.9899999...) never leaves a stray one-cent balance due.
+function isFullyPaid(amountPaid, fineTotal) {
+  return fineTotal > 0 && Math.round(amountPaid * 100) >= Math.round(fineTotal * 100);
+}
+
 // POST /payments - record a payment for a ticket
 router.post("/", requireAuth, authorize("admin"), async (req, res) => {
   const { ticket_id, receipt_no, amount_paid, payment_method, notes, paid_at } = req.body;
@@ -86,7 +92,7 @@ router.post("/", requireAuth, authorize("admin"), async (req, res) => {
     // This payment is recorded as already verified (admin-entered), so it
     // counts toward the total immediately when deciding partially_paid vs paid.
     const { fineTotal, amountPaid: totalPaid } = await getFineAndPaid(client, ticket_id);
-    const newStatus = totalPaid >= fineTotal && fineTotal > 0 ? "paid" : "partially_paid";
+    const newStatus = isFullyPaid(totalPaid, fineTotal) ? "paid" : "partially_paid";
     await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [newStatus, ticket_id]);
 
     await client.query(
@@ -221,7 +227,7 @@ router.post("/:id/verify", requireAuth, authorize("admin"), async (req, res) => 
     );
 
     const { fineTotal, amountPaid: totalPaid } = await getFineAndPaid(client, payment.rows[0].ticket_id);
-    const newStatus = totalPaid >= fineTotal && fineTotal > 0 ? "paid" : "partially_paid";
+    const newStatus = isFullyPaid(totalPaid, fineTotal) ? "paid" : "partially_paid";
     await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [newStatus, payment.rows[0].ticket_id]);
 
     await client.query(
