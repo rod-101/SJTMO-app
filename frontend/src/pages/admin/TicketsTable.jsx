@@ -615,9 +615,24 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
           </div>
           {hasPayment ? (
             <>
+              <div
+                className="user-panel-section-title"
+                style={{ marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--border, #e2e2e2)" }}
+              >
+                Receipt Details
+              </div>
               <div className="user-panel-grid">
                 <Field label="Receipt #" value={v.receipt_no || "—"} />
-                <Field label="Amount Paid" value={v.amount_paid ? `₱${Number(v.amount_paid).toFixed(2)}` : "—"} />
+                <Field
+                  label="Amount Paid"
+                  value={
+                    v.submitted_amount_paid != null
+                      ? `₱${Number(v.submitted_amount_paid).toFixed(2)}`
+                      : v.amount_paid
+                      ? `₱${Number(v.amount_paid).toFixed(2)}`
+                      : "—"
+                  }
+                />
                 <Field label="Paid At" value={formatDateTime(v.paid_at)} />
               </div>
               {v.status === "payment_submitted" && v.submitted_by_motorist && (

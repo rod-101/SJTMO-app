@@ -43,6 +43,7 @@ router.get("/", requireAuth, authorize("admin", "enforcer", "motorist"), async (
       SELECT v.*,
         latest.payment_id, latest.receipt_no, latest.paid_at, latest.receipt_filename,
         latest.verified, latest.submitted_by_motorist,
+        latest.amount_paid AS submitted_amount_paid,
         COALESCE(paid.amount_paid, 0) AS amount_paid,
         COALESCE(fine.fine_total, 0) AS fine_total,
         GREATEST(COALESCE(fine.fine_total, 0) - COALESCE(paid.amount_paid, 0), 0) AS balance_due
@@ -59,7 +60,7 @@ router.get("/", requireAuth, authorize("admin", "enforcer", "motorist"), async (
       ) paid ON true
       LEFT JOIN LATERAL (
         SELECT p.id AS payment_id, p.receipt_no, p.paid_at, p.receipt_filename,
-               p.verified, p.submitted_by_motorist
+               p.verified, p.submitted_by_motorist, p.amount_paid
         FROM payments p
         WHERE p.ticket_id = v.id
         ORDER BY p.paid_at DESC
