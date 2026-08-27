@@ -150,6 +150,16 @@ async function runStartupMigrations() {
        created_at  TIMESTAMPTZ DEFAULT NOW()
      )`,
     `CREATE INDEX IF NOT EXISTS idx_evt_user ON email_verification_tokens(user_id)`,
+    `CREATE TABLE IF NOT EXISTS staff_invite_tokens (
+       id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+       user_id     UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       token_hash  VARCHAR(64) NOT NULL UNIQUE,
+       invited_by  UUID        REFERENCES users(id) ON DELETE SET NULL,
+       expires_at  TIMESTAMPTZ NOT NULL,
+       used_at     TIMESTAMPTZ,
+       created_at  TIMESTAMPTZ DEFAULT NOW()
+     )`,
+    `CREATE INDEX IF NOT EXISTS idx_sit_user ON staff_invite_tokens(user_id)`,
   ];
 
   for (const sql of migrations) {
