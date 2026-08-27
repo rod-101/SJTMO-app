@@ -166,7 +166,7 @@ router.post("/motorist-submit", requireAuth, authorize("motorist"), (req, res) =
           `INSERT INTO payments
              (ticket_id, receipt_no, amount_paid, payment_method, paid_at, receipt_filename, submitted_by_motorist, verified)
            VALUES ($1, $2, $3, $4, COALESCE($5, NOW()), $6, TRUE, FALSE) RETURNING *`,
-          [ticket_id, receipt_no, amount_paid, payment_method || "cash", paid_at || null, filename],
+          [ticket_id, receipt_no, amount_paid, "cash", paid_at || null, filename],
         );
       } catch (insertErr) {
         fs.unlinkSync(filePath);

@@ -261,16 +261,7 @@ function ReceiptUploadForm({ violation, onSubmitted }) {
         </div>
         <div className="form-group">
           <label className="form-label">Payment Method</label>
-          <select
-            className="form-select"
-            value={form.payment_method}
-            onChange={(e) => setForm({ ...form, payment_method: e.target.value })}
-          >
-            <option value="cash">Cash</option>
-            <option value="gcash">GCash</option>
-            <option value="bank_transfer">Bank Transfer</option>
-            <option value="others">Others</option>
-          </select>
+          <input className="form-input" type="text" value="Cash" disabled readOnly />
         </div>
         <div className="form-group">
           <label className="form-label">Date Paid</label>
