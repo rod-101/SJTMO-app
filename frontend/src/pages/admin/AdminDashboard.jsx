@@ -3,6 +3,7 @@ import Navbar from "../../components/Navbar";
 import ViolationMap from "./ViolationMap";
 import TicketsTable from "./TicketsTable";
 import UserManagement from "./UserManagement";
+import SystemLogs from "./SystemLogs";
 import OrdinancesPanel from "./OrdinancesPanel";
 import DashboardOverview from "./DashboardOverview";
 import { useAuth } from "../../context/AuthContext";
@@ -204,7 +205,7 @@ export default function AdminDashboard() {
             <ComingSoon title="Enforcer Tracking" icon="🚓" />
           )}
 
-          {tab === "logs" && <ComingSoon title="System Logs" icon="📜" />}
+          {tab === "logs" && <SystemLogs />}
 
           {tab === "settings" && (
             <ComingSoon title="System Settings" icon="⚙️" />

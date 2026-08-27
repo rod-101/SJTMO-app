@@ -1,12 +1,20 @@
 const express = require("express");
 const router = express.Router();
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const pool = require("../db");
 const { requireAuth, authorize } = require("../middleware/auth");
+const {
+  createInviteToken,
+  invalidateOutstandingInvites,
+  sendInviteEmail,
+} = require("../services/staffInvite");
 
 const SALT_ROUNDS = 10;
 const VALID_ROLES = new Set(["admin", "enforcer", "motorist"]);
+const INVITABLE_ROLES = new Set(["admin", "enforcer"]);
 const VALID_STATUSES = new Set(["active", "inactive", "suspended"]);
+const ROLE_LABEL = { admin: "an admin", enforcer: "an enforcer" };
 
 const ROLE_RANK = { motorist: 1, enforcer: 2, admin: 3 };
 
@@ -53,13 +61,16 @@ router.get("/", async (req, res) => {
 });
 
 // ─── POST /users ──────────────────────────────────────────────────────────────
+// Invite-only: creates an enforcer/admin account with no usable password and
+// emails an accept-invite link. The invitee sets their own password.
+// Body: { name, email, role }
 router.post("/", async (req, res) => {
-  const { name, email, password, role } = req.body;
+  const { name, email, role } = req.body;
 
-  if (!name || !email || !password || !role) {
+  if (!name || !email || !role) {
     return res
       .status(400)
-      .json({ error: "Name, email, password, and role are required." });
+      .json({ error: "Name, email, and role are required." });
   }
 
   const normalizedEmail =
@@ -68,14 +79,10 @@ router.post("/", async (req, res) => {
     return res.status(400).json({ error: "Enter a valid email address." });
   }
 
-  if (!VALID_ROLES.has(role)) {
-    return res.status(400).json({ error: "Invalid role." });
-  }
-
-  if (typeof password !== "string" || password.length < 8) {
+  if (!INVITABLE_ROLES.has(role)) {
     return res
       .status(400)
-      .json({ error: "Password must be at least 8 characters." });
+      .json({ error: "Only enforcer or admin accounts can be invited here." });
   }
 
   const actor = req.user;
@@ -83,7 +90,11 @@ router.post("/", async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+    // Non-usable placeholder password: a random hash, not a fixed sentinel,
+    // so even a status-check bug can't yield a guessable credential. The
+    // invitee replaces this via POST /login/accept-invite.
+    const placeholder = crypto.randomBytes(32).toString("hex");
+    const hashed = await bcrypt.hash(placeholder, SALT_ROUNDS);
     const result = await client.query(
       `INSERT INTO users (name, email, password, role)
        VALUES ($1, $2, $3, $4)
@@ -91,9 +102,10 @@ router.post("/", async (req, res) => {
       [name.trim(), normalizedEmail, hashed, role],
     );
     const created = result.rows[0];
+    const rawToken = await createInviteToken(client, created.id, actor?.id);
     await audit(client, {
       actor,
-      action: "user.create",
+      action: "user.invite",
       targetId: created.id,
       newValue: {
         name: created.name,
@@ -103,13 +115,73 @@ router.post("/", async (req, res) => {
       ip: req.ip,
     });
     await client.query("COMMIT");
-    res.status(201).json(created);
+
+    sendInviteEmail(created, rawToken, ROLE_LABEL[role] || role).catch((err) =>
+      console.error("Failed to send invite email:", err),
+    );
+
+    res.status(201).json({ ...created, inviteSent: true });
   } catch (err) {
     await client.query("ROLLBACK");
     if (err.code === "23505") {
       return res.status(409).json({ error: "Email is already registered." });
     }
     console.error("Create user error:", err);
+    res.status(500).json({ error: "Server error" });
+  } finally {
+    client.release();
+  }
+});
+
+// ─── POST /users/:id/resend-invite ─────────────────────────────────────────────
+// Admin-triggered resend for a stuck/expired staff invite.
+router.post("/:id/resend-invite", async (req, res) => {
+  const { id } = req.params;
+  const actor = req.user;
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const existing = await client.query(
+      `SELECT id, name, email, role, status FROM users WHERE id = $1 FOR UPDATE`,
+      [id],
+    );
+    if (existing.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ error: "User not found." });
+    }
+    const target = existing.rows[0];
+    if (target.role === "motorist") {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ error: "Motorist accounts use the self-service verification flow." });
+    }
+    if (target.status !== "pending_verification") {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ error: "This account has already accepted an invite." });
+    }
+
+    await invalidateOutstandingInvites(client, target.id);
+    const rawToken = await createInviteToken(client, target.id, actor?.id);
+    await audit(client, {
+      actor,
+      action: "user.invite_resend",
+      targetId: target.id,
+      ip: req.ip,
+    });
+    await client.query("COMMIT");
+
+    sendInviteEmail(target, rawToken, ROLE_LABEL[target.role] || target.role).catch(
+      (err) => console.error("Failed to send invite email:", err),
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Resend invite error:", err);
     res.status(500).json({ error: "Server error" });
   } finally {
     client.release();

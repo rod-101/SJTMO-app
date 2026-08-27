@@ -71,6 +71,22 @@ CREATE TABLE IF NOT EXISTS email_verification_tokens (
 );
 CREATE INDEX IF NOT EXISTS idx_evt_user ON email_verification_tokens(user_id);
 
+-- ── Staff invite tokens ──────────────────────────────────────
+-- Separate from email_verification_tokens: invites are how a staff member
+-- (enforcer/admin) sets a password for the first time, having never chosen
+-- credentials, whereas verification tokens confirm an email for someone who
+-- already picked their own password at self-registration.
+CREATE TABLE IF NOT EXISTS staff_invite_tokens (
+    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id      UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash   VARCHAR(64) NOT NULL UNIQUE,
+    invited_by   UUID        REFERENCES users(id) ON DELETE SET NULL,
+    expires_at   TIMESTAMPTZ NOT NULL,
+    used_at      TIMESTAMPTZ,
+    created_at   TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_sit_user ON staff_invite_tokens(user_id);
+
 -- Treasury role removed; reassign any lingering treasury accounts to enforcer
 -- before tightening the CHECK constraint, or the ALTER below would fail.
 UPDATE users SET role = 'enforcer' WHERE role = 'treasury';

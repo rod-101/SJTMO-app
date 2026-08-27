@@ -7,6 +7,7 @@ import {
   resetUserPassword,
   forceLogoutUser,
   getUserActivity,
+  resendInvite,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import "../../App.css";
@@ -109,8 +110,14 @@ function ConfirmModal({ title, message, confirmLabel, danger, onConfirm, onClose
 }
 
 // ─── Add User Modal ───────────────────────────────────────────────────────────
+// Invite-only: admin supplies name/email/role, the invitee sets their own
+// password via the emailed accept-invite link. Motorists self-register
+// instead, so this modal only offers enforcer/admin.
+const INVITABLE_ROLES = ["enforcer", "admin"];
+
 function AddUserModal({ onClose, onCreated, toast, actorRole, defaultRole }) {
-  const [form, setForm] = useState({ name: "", email: "", role: defaultRole || "motorist", password: "" });
+  const initialRole = INVITABLE_ROLES.includes(defaultRole) ? defaultRole : "enforcer";
+  const [form, setForm] = useState({ name: "", email: "", role: initialRole });
   const [submitting, setSubmitting] = useState(false);
   const [err, setErr] = useState("");
 
@@ -119,15 +126,14 @@ function AddUserModal({ onClose, onCreated, toast, actorRole, defaultRole }) {
     setErr("");
     if (!form.name.trim()) return setErr("Full name is required.");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) return setErr("Enter a valid email address.");
-    if (form.password.length < 8) return setErr("Password must be at least 8 characters.");
     setSubmitting(true);
     try {
-      await createUser({ name: form.name.trim(), email: form.email.trim(), password: form.password, role: form.role });
-      toast.success("User created.");
+      await createUser({ name: form.name.trim(), email: form.email.trim(), role: form.role });
+      toast.success("Invite sent.");
       onCreated();
       onClose();
     } catch (e2) {
-      setErr(e2.message || "Failed to create user.");
+      setErr(e2.message || "Failed to send invite.");
     } finally {
       setSubmitting(false);
     }
@@ -153,18 +159,17 @@ function AddUserModal({ onClose, onCreated, toast, actorRole, defaultRole }) {
           <div className="form-group">
             <label className="form-label">Role</label>
             <select className="form-select" value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
-              {ROLES.filter((r) => actorRole === "admin" || r !== "admin").map((r) => (
+              {INVITABLE_ROLES.filter((r) => actorRole === "admin" || r !== "admin").map((r) => (
                 <option key={r} value={r}>{ROLE_LABEL[r]}</option>
               ))}
             </select>
           </div>
-          <div className="form-group">
-            <label className="form-label">Initial Password</label>
-            <input className="form-input" type="password" placeholder="At least 8 characters" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-          </div>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-light)" }}>
+            An invite link will be emailed to this address. They'll set their own password.
+          </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
             <button className="btn btn-outline btn-sm" type="button" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary btn-sm" disabled={submitting}>{submitting ? "Creating…" : "Create User"}</button>
+            <button className="btn btn-primary btn-sm" disabled={submitting}>{submitting ? "Sending…" : "Send Invite"}</button>
           </div>
         </form>
       </div>
@@ -398,6 +403,8 @@ function RowMenu({ user, canManage, onAction, onClose }) {
     <div className="row-menu" ref={ref}>
       {item("View Details", "view")}
       {item("Edit User", "edit", false, !canManage)}
+      {user.role !== "motorist" && user.status === "pending_verification" &&
+        item("Resend Invite", "resend-invite", false, !canManage)}
       {item("Reset Password", "reset-password", false, !canManage)}
       {item("Force Logout", "force-logout", false, !canManage)}
       {user.status !== "active"    && item("Activate",   "activate",   false, !canManage)}
@@ -593,6 +600,14 @@ export default function UserManagement({ violations = [] }) {
       case "view": return setDetailsId(target.id);
       case "edit": return setEditUser(target);
       case "reset-password": return setResetUser(target);
+      case "resend-invite":
+        try {
+          await resendInvite(target.id);
+          toast.success(`Invite resent to ${target.name}.`);
+        } catch (e) {
+          toast.error(e.message || "Failed to resend invite.");
+        }
+        return;
       case "activate":
       case "deactivate":
       case "suspend": {

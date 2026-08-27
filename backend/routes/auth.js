@@ -18,6 +18,7 @@ const {
   markTokenUsed,
   sendVerificationEmail,
 } = require("../services/emailVerification");
+const { findValidInvite, markInviteUsed } = require("../services/staffInvite");
 
 const SALT_ROUNDS = 10;
 const MIN_REGISTRATION_AGE = 16;
@@ -48,6 +49,38 @@ const resendVerificationLimiter = rateLimit({
   message: { error: "Too many requests. Please try again later." },
   keyGenerator: (req) => (req.body?.email || "").toLowerCase() || req.ip,
 });
+
+const acceptInviteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again later." },
+  keyGenerator: (req) => `${req.ip}:${(req.body?.token || "").slice(0, 16)}`,
+});
+
+// Small inline audit helper — this file has no authenticated actor for the
+// accept-invite action (the invitee isn't logged in yet), matching the
+// codebase's existing preference for per-file helpers over a shared module.
+async function audit(
+  client,
+  { actor = null, action, targetId, oldValue = null, newValue = null, ip = null },
+) {
+  await client.query(
+    `INSERT INTO audit_logs
+       (user_id, user_name, action, target_table, target_id, old_value, new_value, ip_address)
+     VALUES ($1, $2, $3, 'users', $4, $5, $6, $7)`,
+    [
+      actor?.id || null,
+      actor?.name || null,
+      action,
+      String(targetId),
+      oldValue ? JSON.stringify(oldValue) : null,
+      newValue ? JSON.stringify(newValue) : null,
+      ip,
+    ],
+  );
+}
 
 function computeAge(birthdayDate) {
   const today = new Date();
@@ -291,6 +324,91 @@ router.post("/resend-verification", resendVerificationLimiter, async (req, res) 
     await client.query("ROLLBACK");
     console.error("Resend verification error:", err);
     res.json(generic);
+  } finally {
+    client.release();
+  }
+});
+
+// GET /login/invite-info — preview an invite before the invitee sets a
+// password, so the accept-invite page can show who/what role they're joining.
+router.get("/invite-info", async (req, res) => {
+  const token = req.query.token;
+  if (typeof token !== "string" || !token) {
+    return res.status(400).json({ error: "Invite token is required." });
+  }
+  try {
+    const row = await findValidInvite(pool, token);
+    if (!row) {
+      return res
+        .status(400)
+        .json({ error: "This invite link is invalid or has expired." });
+    }
+    const result = await pool.query(
+      `SELECT name, email, role FROM users WHERE id = $1`,
+      [row.user_id],
+    );
+    if (result.rows.length === 0) {
+      return res
+        .status(400)
+        .json({ error: "This invite link is invalid or has expired." });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Invite info error:", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
+});
+
+// POST /login/accept-invite — the invitee sets their own password, activating
+// a staff account that an admin created via POST /users.
+// Body: { token, password }
+router.post("/accept-invite", acceptInviteLimiter, async (req, res) => {
+  const { token, password } = req.body;
+
+  if (typeof token !== "string" || !token) {
+    return res.status(400).json({ error: "Invite token is required." });
+  }
+  if (typeof password !== "string" || password.length < 8) {
+    return res
+      .status(400)
+      .json({ error: "Password must be at least 8 characters." });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const row = await findValidInvite(client, token);
+    if (!row) {
+      await client.query("ROLLBACK");
+      return res
+        .status(400)
+        .json({ error: "This invite link is invalid or has expired." });
+    }
+
+    const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+    await client.query(
+      `UPDATE users
+       SET password = $1, email_verified = TRUE, email_verified_at = NOW(),
+           status = 'active'
+       WHERE id = $2`,
+      [hashed, row.user_id],
+    );
+    await markInviteUsed(client, row.id);
+    await audit(client, {
+      action: "user.invite_accepted",
+      targetId: row.user_id,
+      ip: req.ip,
+    });
+    await client.query("COMMIT");
+
+    res.json({
+      success: true,
+      message: "Account activated. You can now sign in.",
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error("Accept invite error:", err);
+    res.status(500).json({ error: "Server error. Please try again." });
   } finally {
     client.release();
   }

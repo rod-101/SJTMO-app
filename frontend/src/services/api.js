@@ -118,6 +118,18 @@ export const resendVerification = (email) =>
     body: JSON.stringify({ email }),
   }).then(handleResponse);
 
+export const getInviteInfo = (token) =>
+  fetch(`${BASE_URL}/login/invite-info?token=${encodeURIComponent(token)}`).then(
+    handleResponse,
+  );
+
+export const acceptInvite = (token, password) =>
+  fetch(`${BASE_URL}/login/accept-invite`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  }).then(handleResponse);
+
 export const refreshToken = () =>
   fetch(`${BASE_URL}/login/refresh`, {
     method: "POST",
@@ -333,6 +345,12 @@ export const createUser = (data) =>
     body: JSON.stringify(data),
   });
 
+export const resendInvite = (id) =>
+  authedFetch(`${BASE_URL}/users/${id}/resend-invite`, {
+    method: "POST",
+    headers: authHeadersOnly(),
+  });
+
 export const updateUser = (id, data) =>
   authedFetch(`${BASE_URL}/users/${id}`, {
     method: "PATCH",
@@ -363,3 +381,15 @@ export const getUserActivity = (id) =>
   authedFetch(`${BASE_URL}/users/${id}/activity`, {
     headers: authHeadersOnly(),
   });
+
+export const getSystemLogs = (params = {}) => {
+  const query = new URLSearchParams(
+    Object.fromEntries(Object.entries(params).filter(([, v]) => v !== "" && v != null)),
+  ).toString();
+  return authedFetch(`${BASE_URL}/logs${query ? `?${query}` : ""}`, {
+    headers: authHeadersOnly(),
+  });
+};
+
+export const getSystemLogActions = () =>
+  authedFetch(`${BASE_URL}/logs/actions`, { headers: authHeadersOnly() });
