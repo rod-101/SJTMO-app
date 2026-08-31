@@ -83,10 +83,7 @@ function StatusDot({ status }) {
 
 function SkeletonBlock({ h = 20, w = "100%", style }) {
   return (
-    <div
-      className="skeleton-row"
-      style={{ height: h, width: w, ...style }}
-    />
+    <div className="skeleton-row" style={{ height: h, width: w, ...style }} />
   );
 }
 
@@ -126,7 +123,9 @@ export default function DashboardOverview({
     const today = violations.filter((v) => isToday(v.date_issued));
     const pending = violations.filter((v) => v.status === "pending");
     const overdue = violations.filter(isOverdue);
-    const submitted = violations.filter((v) => v.status === "payment_submitted");
+    const submitted = violations.filter(
+      (v) => v.status === "payment_submitted",
+    );
     const resolved = violations.filter(
       (v) => v.status === "resolved" || v.status === "paid",
     );
@@ -199,8 +198,20 @@ export default function DashboardOverview({
   );
 
   // ── Navigation helpers ──────────────────────────────────────────────────
-  const goViolations = (vtab) => {
+  const goViolations = (vtab, options = {}) => {
     if (vtab) localStorage.setItem("sjtmo_vt_tab", vtab);
+
+    if (options.today) {
+      const today = new Date().toISOString().slice(0, 10);
+      localStorage.setItem("sjtmo_vt_today", "1");
+      localStorage.setItem("sjtmo_vt_date_from", today);
+      localStorage.setItem("sjtmo_vt_date_to", today);
+    } else {
+      localStorage.removeItem("sjtmo_vt_today");
+      localStorage.removeItem("sjtmo_vt_date_from");
+      localStorage.removeItem("sjtmo_vt_date_to");
+    }
+
     onNavigate?.("violations");
   };
   const goUsers = (utab) => {
@@ -242,7 +253,8 @@ export default function DashboardOverview({
     if (
       !usersLoading &&
       userStats.enforcers > 0 &&
-      userStats.inactiveEnforcers >= Math.max(1, Math.ceil(userStats.enforcers * 0.4))
+      userStats.inactiveEnforcers >=
+        Math.max(1, Math.ceil(userStats.enforcers * 0.4))
     ) {
       out.push({
         tone: "warning",
@@ -257,7 +269,8 @@ export default function DashboardOverview({
         tone: "info",
         icon: "📈",
         title: `High violation activity today (${stats.today} issued)`,
-        detail: "Above typical daily volume — monitor hotspots on the live map.",
+        detail:
+          "Above typical daily volume — monitor hotspots on the live map.",
         onClick: goMap,
       });
     }
@@ -312,11 +325,11 @@ export default function DashboardOverview({
           loading={usersLoading}
         />
         <StatCard
-          label="Violations Today"
+          label="TODAY"
           value={stats.today}
           accent="purple"
           hint={`${stats.last7} in last 7 days`}
-          onClick={() => goViolations("all")}
+          onClick={() => goViolations("all", { today: true })}
           loading={violationsLoading}
         />
         <StatCard
@@ -342,7 +355,9 @@ export default function DashboardOverview({
           value={stats.submitted}
           accent={stats.submitted > 0 ? "orange" : "green"}
           hint={
-            stats.submitted > 0 ? "Motorist-submitted, unverified" : "Nothing awaiting review"
+            stats.submitted > 0
+              ? "Motorist-submitted, unverified"
+              : "Nothing awaiting review"
           }
           onClick={() => goViolations("payment_submitted")}
           loading={violationsLoading}
@@ -432,7 +447,11 @@ export default function DashboardOverview({
                   weekday: "short",
                 });
                 return (
-                  <div className="dash-spark-col" key={i} title={`${label}: ${b.count}`}>
+                  <div
+                    className="dash-spark-col"
+                    key={i}
+                    title={`${label}: ${b.count}`}
+                  >
                     <div className="dash-spark-count">{b.count || ""}</div>
                     <div
                       className="dash-spark-bar"
@@ -478,7 +497,8 @@ export default function DashboardOverview({
                     <div className="dash-breakdown-head">
                       <span className="dash-breakdown-name">{type}</span>
                       <span className="dash-breakdown-count">
-                        {count} <span className="dash-breakdown-pct">({pct}%)</span>
+                        {count}{" "}
+                        <span className="dash-breakdown-pct">({pct}%)</span>
                       </span>
                     </div>
                     <div className="dash-bar-track">
@@ -528,7 +548,9 @@ export default function DashboardOverview({
                   <li
                     key={v.id}
                     className="dash-activity-item"
-                    onClick={() => goViolations(status === "overdue" ? "overdue" : "all")}
+                    onClick={() =>
+                      goViolations(status === "overdue" ? "overdue" : "all")
+                    }
                   >
                     <StatusDot status={status} />
                     <div className="dash-activity-body">
@@ -537,7 +559,9 @@ export default function DashboardOverview({
                         <em>{v.violation_type}</em> to {v.motorist_name}
                       </div>
                       <div className="dash-activity-meta">
-                        <span className={`badge badge-${status}`}>{status}</span>
+                        <span className={`badge badge-${status}`}>
+                          {status}
+                        </span>
                         <span>·</span>
                         <span>{formatRelative(v.date_issued)}</span>
                       </div>
@@ -566,7 +590,8 @@ export default function DashboardOverview({
           >
             <div className="dash-map-icon">🗺️</div>
             <div className="dash-map-stat">
-              <strong>{stats.today}</strong> today · <strong>{stats.last7}</strong> this week
+              <strong>{stats.today}</strong> today ·{" "}
+              <strong>{stats.last7}</strong> this week
             </div>
             <div className="dash-map-cta">Open live map to view hotspots →</div>
           </div>
