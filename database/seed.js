@@ -39,7 +39,7 @@ const SALT_ROUNDS = 10;
 const USERS = [
   {
     name: "Estelito Balleza",
-    email: "rodjonesrosalinda@gmail.com",
+    email: "estelito@gmail.com",
     password: "1234admin",
     role: "admin",
   },
