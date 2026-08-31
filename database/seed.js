@@ -68,6 +68,12 @@ const USERS = [
     password: "1234enforcer",
     role: "enforcer",
   },
+  {
+    name: "Rodjones Rosalinda",
+    email: "rodjonesrosalinda@gmail.com",
+    password: "1234enforcer",
+    role: "admin",
+  },
 ];
 
 async function seed() {
