@@ -29,8 +29,8 @@ const pool = process.env.DATABASE_URL
   : new Pool({
       host: process.env.DB_HOST || "localhost",
       port: Number(process.env.DB_PORT) || 5432,
-      database: process.env.DB_NAME || "sjtmo_db",
-      user: process.env.DB_USER || "postgres",
+      database: process.env.DB_NAME || "sjtms_db2",
+      user: process.env.DB_USER || "db_user",
       password: process.env.DB_PASSWORD,
     });
 
@@ -53,8 +53,8 @@ const USERS = [
   {
     name: "Allan Dilon Esteves",
     email: "allandilonesteves24@gmail.com",
-    password: "allan123123",
-    role: "1234motorist",
+    password: "1234motorist",
+    role: "motorist",
   },
   {
     name: "Cindy Salazar",
