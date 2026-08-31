@@ -220,6 +220,11 @@ export default function Login() {
           </button>
         </form>
 
+        {/* ── Links ── */}
+        <p className="login-footer" style={{ marginTop: 12, textAlign: "center" }}>
+          <Link to="/forgot-password">Forgot password?</Link>
+        </p>
+
         {/* ── Footer ── */}
         <p className="login-footer">
           Don&apos;t have an account? <Link to="/register">Register</Link>

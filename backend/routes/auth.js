@@ -19,6 +19,13 @@ const {
   sendVerificationEmail,
 } = require("../services/emailVerification");
 const { findValidInvite, markInviteUsed } = require("../services/staffInvite");
+const {
+  createResetToken: createPasswordResetToken,
+  invalidateOutstandingTokens: invalidateResetTokens,
+  findValidToken: findValidResetToken,
+  markTokenUsed: markResetTokenUsed,
+  sendPasswordResetEmail,
+} = require("../services/passwordReset");
 
 const SALT_ROUNDS = 10;
 const MIN_REGISTRATION_AGE = 16;
@@ -479,6 +486,152 @@ router.post("/logout", async (req, res) => {
   }
   res.clearCookie(REFRESH_COOKIE_NAME, { path: "/login" });
   res.json({ success: true });
+});
+
+// POST /login/forgot-password — request a password reset email
+router.post("/forgot-password", resendVerificationLimiter, async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || typeof email !== "string" || email.length > 255) {
+    return res.status(400).json({ error: "Valid email is required." });
+  }
+
+  const normalizedEmail = email.trim().toLowerCase();
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, name, email FROM users WHERE email = $1 LIMIT 1`,
+      [normalizedEmail],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "If that account exists, a password reset link was sent.",
+      });
+    }
+
+    const user = result.rows[0];
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      await invalidateResetTokens(client, user.id);
+      const rawToken = await createPasswordResetToken(client, user.id);
+      await sendPasswordResetEmail(user, rawToken);
+
+      await client.query("COMMIT");
+
+      res.json({
+        success: true,
+        message: "Password reset link sent. Check your email.",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error("Forgot password error:", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
+});
+
+// POST /login/verify-reset-token — verify a password reset token is valid
+router.post("/verify-reset-token", async (req, res) => {
+  const { token } = req.body;
+
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ error: "Token is required." });
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      const row = await findValidResetToken(client, token);
+      if (!row) {
+        return res.status(400).json({ error: "Invalid or expired token." });
+      }
+
+      const userResult = await client.query(
+        `SELECT id, name, email FROM users WHERE id = $1`,
+        [row.user_id],
+      );
+
+      if (userResult.rows.length === 0) {
+        return res.status(400).json({ error: "User not found." });
+      }
+
+      const user = userResult.rows[0];
+      res.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error("Verify reset token error:", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
+});
+
+// POST /login/reset-password — reset password with valid token
+router.post("/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+
+  if (!token || typeof token !== "string") {
+    return res.status(400).json({ error: "Token is required." });
+  }
+
+  if (!password || typeof password !== "string" || password.length < 8) {
+    return res.status(400).json({
+      error: "Password must be at least 8 characters.",
+    });
+  }
+
+  try {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const row = await findValidResetToken(client, token);
+      if (!row) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Invalid or expired token." });
+      }
+
+      const hashed = await bcrypt.hash(password, SALT_ROUNDS);
+      await client.query(
+        `UPDATE users SET password = $1 WHERE id = $2`,
+        [hashed, row.user_id],
+      );
+      await markResetTokenUsed(client, row.id);
+
+      await audit(client, {
+        action: "user.password_reset",
+        targetId: row.user_id,
+        ip: req.ip,
+      });
+
+      await client.query("COMMIT");
+
+      res.json({
+        success: true,
+        message: "Password reset successfully. You can now log in.",
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error("Reset password error:", err);
+    res.status(500).json({ error: "Server error. Please try again." });
+  }
 });
 
 module.exports = router;

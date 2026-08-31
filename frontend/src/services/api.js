@@ -118,6 +118,27 @@ export const resendVerification = (email) =>
     body: JSON.stringify({ email }),
   }).then(handleResponse);
 
+export const forgotPassword = (email) =>
+  fetch(`${BASE_URL}/login/forgot-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  }).then(handleResponse);
+
+export const verifyResetToken = (token) =>
+  fetch(`${BASE_URL}/login/verify-reset-token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  }).then(handleResponse);
+
+export const resetPassword = (token, password) =>
+  fetch(`${BASE_URL}/login/reset-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  }).then(handleResponse);
+
 export const getInviteInfo = (token) =>
   fetch(`${BASE_URL}/login/invite-info?token=${encodeURIComponent(token)}`).then(
     handleResponse,

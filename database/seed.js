@@ -38,34 +38,35 @@ const SALT_ROUNDS = 10;
 
 const USERS = [
   {
-    name: "Admin User",
-    email: "admin@sjtmo.gov.ph",
-    password: "Admin@2025",
+    name: "Estelito Balleza",
+    email: "rodjonesrosalinda@gmail.com",
+    password: "1234admin",
     role: "admin",
   },
   {
-    name: "Enforcer Juan",
-    email: "enforcer@sjtmo.gov.ph",
-    password: "Enforcer@2025",
+    name: "Chevy Chevrolei Hernandez",
+    email: "school.chev28@gmail.com",
+    password: "1234enforcer",
+    role: "enforcer",
+  },
+
+  {
+    name: "Allan Dilon Esteves",
+    email: "allandilonesteves24@gmail.com",
+    password: "allan123123",
+    role: "1234motorist",
+  },
+  {
+    name: "Cindy Salazar",
+    email: "cindysalazar555@gmail.com",
+    password: "1234enforcer",
     role: "enforcer",
   },
   {
-    name: "Pedro Motorist",
-    email: "motorist@gmail.com",
-    password: "Motorist@2025",
-    role: "motorist",
-  },
-  {
-    name: "Allan Dilon N. Esteves",
-    email: "allan@gmail.com",
-    password: "allan123123",
-    role: "motorist",
-  },
-  {
-    name: "Cindy R. Salazar",
-    email: "cindy@gmail.com",
-    password: "cindy123123",
-    role: "motorist",
+    name: "Nicole Belarmino",
+    email: "princessnicolebelarmino239@gmail.com",
+    password: "1234enforcer",
+    role: "enforcer",
   },
 ];
 
