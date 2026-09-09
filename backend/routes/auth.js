@@ -71,7 +71,14 @@ const acceptInviteLimiter = rateLimit({
 // codebase's existing preference for per-file helpers over a shared module.
 async function audit(
   client,
-  { actor = null, action, targetId, oldValue = null, newValue = null, ip = null },
+  {
+    actor = null,
+    action,
+    targetId,
+    oldValue = null,
+    newValue = null,
+    ip = null,
+  },
 ) {
   await client.query(
     `INSERT INTO audit_logs
@@ -219,6 +226,10 @@ router.post("/register", registerLimiter, async (req, res) => {
     });
   }
 
+  if (typeof license_no !== "string" || !license_no.trim()) {
+    return res.status(400).json({ error: "License number is required." });
+  }
+
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -298,7 +309,10 @@ router.post("/verify-email", async (req, res) => {
     await markTokenUsed(client, row.id);
     await client.query("COMMIT");
 
-    res.json({ success: true, message: "Email verified. You can now sign in." });
+    res.json({
+      success: true,
+      message: "Email verified. You can now sign in.",
+    });
   } catch (err) {
     await client.query("ROLLBACK");
     console.error("Verify email error:", err);
@@ -310,44 +324,48 @@ router.post("/verify-email", async (req, res) => {
 
 // POST /login/resend-verification — issues a fresh verification link.
 // Body: { email }
-router.post("/resend-verification", resendVerificationLimiter, async (req, res) => {
-  const { email } = req.body;
-  const generic = {
-    success: true,
-    message: "If that account exists, a verification email was sent.",
-  };
-  if (typeof email !== "string" || !email) {
-    return res.json(generic);
-  }
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-    const result = await client.query(
-      `SELECT id, name, email, status FROM users WHERE email = $1`,
-      [normalizedEmail],
-    );
-    const user = result.rows[0];
-    if (user && user.status === "pending_verification") {
-      await invalidateOutstandingTokens(client, user.id);
-      const rawToken = await createVerificationToken(client, user.id);
-      await client.query("COMMIT");
-      sendVerificationEmail(user, rawToken).catch((err) =>
-        console.error("Failed to send verification email:", err),
-      );
-    } else {
-      await client.query("ROLLBACK");
+router.post(
+  "/resend-verification",
+  resendVerificationLimiter,
+  async (req, res) => {
+    const { email } = req.body;
+    const generic = {
+      success: true,
+      message: "If that account exists, a verification email was sent.",
+    };
+    if (typeof email !== "string" || !email) {
+      return res.json(generic);
     }
-    res.json(generic);
-  } catch (err) {
-    await client.query("ROLLBACK");
-    console.error("Resend verification error:", err);
-    res.json(generic);
-  } finally {
-    client.release();
-  }
-});
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `SELECT id, name, email, status FROM users WHERE email = $1`,
+        [normalizedEmail],
+      );
+      const user = result.rows[0];
+      if (user && user.status === "pending_verification") {
+        await invalidateOutstandingTokens(client, user.id);
+        const rawToken = await createVerificationToken(client, user.id);
+        await client.query("COMMIT");
+        sendVerificationEmail(user, rawToken).catch((err) =>
+          console.error("Failed to send verification email:", err),
+        );
+      } else {
+        await client.query("ROLLBACK");
+      }
+      res.json(generic);
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Resend verification error:", err);
+      res.json(generic);
+    } finally {
+      client.release();
+    }
+  },
+);
 
 // GET /login/invite-info — preview an invite before the invitee sets a
 // password, so the accept-invite page can show who/what role they're joining.
@@ -568,7 +586,10 @@ router.post("/verify-reset-token", async (req, res) => {
       }
 
       const user = userResult.rows[0];
-      res.json({ success: true, user: { id: user.id, name: user.name, email: user.email } });
+      res.json({
+        success: true,
+        user: { id: user.id, name: user.name, email: user.email },
+      });
     } finally {
       client.release();
     }
@@ -604,10 +625,10 @@ router.post("/reset-password", async (req, res) => {
       }
 
       const hashed = await bcrypt.hash(password, SALT_ROUNDS);
-      await client.query(
-        `UPDATE users SET password = $1 WHERE id = $2`,
-        [hashed, row.user_id],
-      );
+      await client.query(`UPDATE users SET password = $1 WHERE id = $2`, [
+        hashed,
+        row.user_id,
+      ]);
       await markResetTokenUsed(client, row.id);
 
       await audit(client, {

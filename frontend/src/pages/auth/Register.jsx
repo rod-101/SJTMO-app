@@ -108,6 +108,10 @@ export default function Register() {
       );
       return;
     }
+    if (!licenseNo.trim()) {
+      setError("License number is required.");
+      return;
+    }
     if (password !== confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -120,7 +124,7 @@ export default function Register() {
         email: email.trim(),
         password,
         birthday,
-        license_no: licenseNo.trim() || undefined,
+        license_no: licenseNo.trim(),
       });
       setRegistered(true);
     } catch (err) {
@@ -244,14 +248,13 @@ export default function Register() {
               }}
               required
               autoComplete="bday"
-              max={new Date().toISOString().slice(0, 10)}
+              max={new Date().toISOString().split("T")[0]}
             />
           </div>
 
-          {/* License Number (optional) */}
           <div className="form-group">
             <label className="form-label" htmlFor="license_no">
-              License Number <span style={{ fontWeight: 400 }}>(optional)</span>
+              License Number
             </label>
             <input
               id="license_no"
@@ -263,6 +266,7 @@ export default function Register() {
                 setLicenseNo(e.target.value);
                 setError("");
               }}
+              required
               autoComplete="off"
             />
           </div>
