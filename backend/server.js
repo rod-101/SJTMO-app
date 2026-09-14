@@ -18,7 +18,11 @@ const allowedOrigins = process.env.FRONTEND_URL
   ? [process.env.FRONTEND_URL]
   : ["http://localhost:3000", "http://localhost:5173"];
 
-const corsOptions = { origin: allowedOrigins, credentials: true, optionsSuccessStatus: 200 };
+const corsOptions = {
+  origin: allowedOrigins,
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
 app.use(cors(corsOptions));
 app.options("*", cors(corsOptions)); // handle preflight for all routes
 
@@ -132,6 +136,35 @@ async function runStartupMigrations() {
     `ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified BOOLEAN NOT NULL DEFAULT TRUE`,
     `ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_by UUID REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE payments ADD COLUMN IF NOT EXISTS verified_at TIMESTAMPTZ`,
+    `DO $$
+       DECLARE affected_ids UUID[];
+       BEGIN
+         SELECT COALESCE(array_agg(t.id), ARRAY[]::UUID[]) INTO affected_ids
+           FROM tickets t
+           LEFT JOIN LATERAL (
+             SELECT COALESCE(SUM(p.amount_paid), 0) AS amount_paid
+               FROM payments p
+              WHERE p.ticket_id = t.id AND p.verified = TRUE
+           ) paid ON TRUE
+           LEFT JOIN LATERAL (
+             SELECT COALESCE(SUM(vt.fine), 0) AS fine_total
+               FROM unnest(string_to_array(t.violation_type, ',')) AS names(n)
+               JOIN violation_types vt ON vt.name = trim(names.n)
+           ) fine ON TRUE
+          WHERE t.status = 'partially_paid'
+             OR (paid.amount_paid > 0 AND paid.amount_paid < fine.fine_total);
+
+         DELETE FROM audit_logs
+          WHERE (target_table = 'tickets' OR target_table = 'payments')
+            AND target_id IN (
+              SELECT id::text FROM tickets WHERE id = ANY(affected_ids)
+              UNION ALL
+              SELECT id::text FROM payments WHERE ticket_id = ANY(affected_ids)
+            );
+         DELETE FROM payments WHERE ticket_id = ANY(affected_ids);
+         DELETE FROM tickets WHERE id = ANY(affected_ids);
+       END
+     $$`,
     `ALTER TABLE tickets DROP CONSTRAINT IF EXISTS violations_status_check`,
     `ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check`,
     `ALTER TABLE tickets ADD CONSTRAINT tickets_status_check

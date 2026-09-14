@@ -30,7 +30,7 @@ const uploadReceipt = multer({
 
 // Computes fine_total for a ticket and total amount paid so far across all
 // verified payments (optionally excluding one payment id, e.g. one being
-// rejected). Used to decide whether a ticket is now partially_paid or paid.
+// rejected).
 async function getFineAndPaid(client, ticketId, excludePaymentId = null) {
   const fineResult = await client.query(
     `SELECT COALESCE(SUM(vt.fine), 0) AS fine_total
@@ -55,15 +55,33 @@ async function getFineAndPaid(client, ticketId, excludePaymentId = null) {
 // Compares peso amounts in integer cents so float rounding (e.g. 2999.99
 // stored as 2999.9899999...) never leaves a stray one-cent balance due.
 function isFullyPaid(amountPaid, fineTotal) {
-  return fineTotal > 0 && Math.round(amountPaid * 100) >= Math.round(fineTotal * 100);
+  return (
+    fineTotal > 0 && Math.round(amountPaid * 100) >= Math.round(fineTotal * 100)
+  );
+}
+
+function amountMatchesBalance(amountPaid, fineTotal, verifiedPaid) {
+  const submittedCents = Math.round(Number(amountPaid) * 100);
+  const balanceCents = Math.max(
+    Math.round(fineTotal * 100) - Math.round(verifiedPaid * 100),
+    0,
+  );
+  return (
+    Number.isFinite(Number(amountPaid)) &&
+    submittedCents === balanceCents &&
+    balanceCents > 0
+  );
 }
 
 // POST /payments - record a payment for a ticket
 router.post("/", requireAuth, authorize("admin"), async (req, res) => {
-  const { ticket_id, receipt_no, amount_paid, payment_method, notes, paid_at } = req.body;
+  const { ticket_id, receipt_no, amount_paid, payment_method, notes, paid_at } =
+    req.body;
 
   if (!ticket_id || !receipt_no || !amount_paid) {
-    return res.status(400).json({ error: "ticket_id, receipt_no, and amount_paid are required" });
+    return res
+      .status(400)
+      .json({ error: "ticket_id, receipt_no, and amount_paid are required" });
   }
 
   const client = await pool.connect();
@@ -78,22 +96,47 @@ router.post("/", requireAuth, authorize("admin"), async (req, res) => {
       await client.query("ROLLBACK");
       return res.status(404).json({ error: "Ticket not found" });
     }
-    if (ticket.rows[0].status === "resolved" || ticket.rows[0].status === "dismissed") {
+    if (
+      ticket.rows[0].status === "resolved" ||
+      ticket.rows[0].status === "dismissed"
+    ) {
       await client.query("ROLLBACK");
-      return res.status(400).json({ error: "Ticket is already resolved or dismissed" });
+      return res
+        .status(400)
+        .json({ error: "Ticket is already resolved or dismissed" });
+    }
+
+    const { fineTotal, amountPaid: verifiedPaid } = await getFineAndPaid(
+      client,
+      ticket_id,
+    );
+    if (!amountMatchesBalance(amount_paid, fineTotal, verifiedPaid)) {
+      await client.query("ROLLBACK");
+      const balanceDue = Math.max(fineTotal - verifiedPaid, 0);
+      return res
+        .status(400)
+        .json({
+          error: `Full payment of ${balanceDue.toFixed(2)} is required.`,
+        });
     }
 
     const payment = await client.query(
       `INSERT INTO payments (ticket_id, receipt_no, amount_paid, processed_by, payment_method, notes, paid_at)
        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, NOW())) RETURNING *`,
-      [ticket_id, receipt_no, amount_paid, req.user.id, payment_method || "cash", notes || null, paid_at || null],
+      [
+        ticket_id,
+        receipt_no,
+        amount_paid,
+        req.user.id,
+        payment_method || "cash",
+        notes || null,
+        paid_at || null,
+      ],
     );
 
-    // This payment is recorded as already verified (admin-entered), so it
-    // counts toward the total immediately when deciding partially_paid vs paid.
-    const { fineTotal, amountPaid: totalPaid } = await getFineAndPaid(client, ticket_id);
-    const newStatus = isFullyPaid(totalPaid, fineTotal) ? "paid" : "partially_paid";
-    await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [newStatus, ticket_id]);
+    await client.query("UPDATE tickets SET status = 'paid' WHERE id = $1", [
+      ticket_id,
+    ]);
 
     await client.query(
       `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
@@ -110,7 +153,8 @@ router.post("/", requireAuth, authorize("admin"), async (req, res) => {
     res.status(201).json(payment.rows[0]);
   } catch (err) {
     await client.query("ROLLBACK");
-    if (err.code === "23505") return res.status(409).json({ error: "Receipt number already exists." });
+    if (err.code === "23505")
+      return res.status(409).json({ error: "Receipt number already exists." });
     console.error("Record payment error:", err);
     res.status(500).json({ error: "Server error" });
   } finally {
@@ -121,185 +165,275 @@ router.post("/", requireAuth, authorize("admin"), async (req, res) => {
 // POST /payments/motorist-submit - motorist self-reports a payment made outside
 // the office, with a receipt photo as proof. Creates an UNVERIFIED payment row
 // and moves the ticket to 'payment_submitted' pending admin review.
-router.post("/motorist-submit", requireAuth, authorize("motorist"), (req, res) => {
-  uploadReceipt.single("photo")(req, res, async (err) => {
-    if (err) {
-      return res.status(400).json({ error: err.message });
-    }
-    if (!req.file) {
-      return res.status(400).json({ error: "Receipt photo is required" });
-    }
+router.post(
+  "/motorist-submit",
+  requireAuth,
+  authorize("motorist"),
+  (req, res) => {
+    uploadReceipt.single("photo")(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: err.message });
+      }
+      if (!req.file) {
+        return res.status(400).json({ error: "Receipt photo is required" });
+      }
 
-    const { ticket_id, receipt_no, amount_paid, payment_method, paid_at } = req.body;
-    if (!ticket_id || !receipt_no || !amount_paid) {
-      return res.status(400).json({ error: "ticket_id, receipt_no, and amount_paid are required" });
-    }
+      const { ticket_id, receipt_no, amount_paid, payment_method, paid_at } =
+        req.body;
+      if (!ticket_id || !receipt_no || !amount_paid) {
+        return res
+          .status(400)
+          .json({
+            error: "ticket_id, receipt_no, and amount_paid are required",
+          });
+      }
 
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
 
-      const ticket = await client.query(
-        `SELECT t.id, t.status FROM tickets t
+        const ticket = await client.query(
+          `SELECT t.id, t.status FROM tickets t
          WHERE t.id = $1 AND t.is_deleted = FALSE
            AND (
              t.motorist_id IN (SELECT id FROM motorists WHERE user_id = $2)
              OR LOWER(t.motorist_name) = LOWER($3)
            )`,
-        [ticket_id, req.user.id, req.user.name],
-      );
-      if (ticket.rows.length === 0) {
-        await client.query("ROLLBACK");
-        return res.status(404).json({ error: "Ticket not found" });
-      }
-      const acceptingStatuses = ["pending", "overdue", "partially_paid"];
-      if (!acceptingStatuses.includes(ticket.rows[0].status)) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: "This ticket does not accept a receipt submission right now." });
-      }
+          [ticket_id, req.user.id, req.user.name],
+        );
+        if (ticket.rows.length === 0) {
+          await client.query("ROLLBACK");
+          return res.status(404).json({ error: "Ticket not found" });
+        }
+        const acceptingStatuses = ["pending", "overdue"];
+        if (!acceptingStatuses.includes(ticket.rows[0].status)) {
+          await client.query("ROLLBACK");
+          return res
+            .status(400)
+            .json({
+              error:
+                "This ticket does not accept a receipt submission right now.",
+            });
+        }
 
-      const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
-      const filePath = path.join(receiptsDir, filename);
-      await sharp(req.file.buffer)
-        .rotate()
-        .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 75 })
-        .toFile(filePath);
+        const { fineTotal, amountPaid: verifiedPaid } = await getFineAndPaid(
+          client,
+          ticket_id,
+        );
+        if (!amountMatchesBalance(amount_paid, fineTotal, verifiedPaid)) {
+          await client.query("ROLLBACK");
+          const balanceDue = Math.max(fineTotal - verifiedPaid, 0);
+          return res
+            .status(400)
+            .json({
+              error: `Full payment of ${balanceDue.toFixed(2)} is required.`,
+            });
+        }
 
-      let payment;
-      try {
-        payment = await client.query(
-          `INSERT INTO payments
+        const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+        const filePath = path.join(receiptsDir, filename);
+        await sharp(req.file.buffer)
+          .rotate()
+          .resize({
+            width: 1600,
+            height: 1600,
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: 75 })
+          .toFile(filePath);
+
+        let payment;
+        try {
+          payment = await client.query(
+            `INSERT INTO payments
              (ticket_id, receipt_no, amount_paid, payment_method, paid_at, receipt_filename, submitted_by_motorist, verified)
            VALUES ($1, $2, $3, $4, COALESCE($5, NOW()), $6, TRUE, FALSE) RETURNING *`,
-          [ticket_id, receipt_no, amount_paid, "cash", paid_at || null, filename],
+            [
+              ticket_id,
+              receipt_no,
+              amount_paid,
+              "cash",
+              paid_at || null,
+              filename,
+            ],
+          );
+        } catch (insertErr) {
+          fs.unlinkSync(filePath);
+          throw insertErr;
+        }
+
+        await client.query(
+          "UPDATE tickets SET status = 'payment_submitted' WHERE id = $1",
+          [ticket_id],
         );
-      } catch (insertErr) {
-        fs.unlinkSync(filePath);
-        throw insertErr;
+
+        await client.query(
+          `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
+         VALUES ($1, $2, 'PAYMENT_SUBMITTED_BY_MOTORIST', 'payments', $3, $4)`,
+          [
+            req.user.id,
+            req.user.name,
+            payment.rows[0].id,
+            JSON.stringify({
+              ticket_id,
+              receipt_no,
+              amount_paid,
+              payment_method,
+            }),
+          ],
+        );
+
+        await client.query("COMMIT");
+        res.status(201).json(payment.rows[0]);
+      } catch (err2) {
+        await client.query("ROLLBACK");
+        if (err2.code === "23505")
+          return res
+            .status(409)
+            .json({ error: "Receipt number already exists." });
+        console.error("Motorist submit receipt error:", err2);
+        res.status(500).json({ error: "Server error" });
+      } finally {
+        client.release();
+      }
+    });
+  },
+);
+
+// POST /payments/:id/verify - admin confirms a motorist-submitted receipt is
+// legitimate: marks it verified and settles the ticket.
+router.post(
+  "/:id/verify",
+  requireAuth,
+  authorize("admin"),
+  async (req, res) => {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+
+      const payment = await client.query(
+        `SELECT id, ticket_id FROM payments WHERE id = $1 AND submitted_by_motorist = TRUE AND verified = FALSE`,
+        [req.params.id],
+      );
+      if (payment.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res
+          .status(404)
+          .json({
+            error: "No pending motorist submission found for this payment",
+          });
       }
 
-      await client.query("UPDATE tickets SET status = 'payment_submitted' WHERE id = $1", [ticket_id]);
+      await client.query(
+        `UPDATE payments SET verified = TRUE, verified_by = $1, verified_at = NOW() WHERE id = $2`,
+        [req.user.id, req.params.id],
+      );
+
+      const { fineTotal, amountPaid: totalPaid } = await getFineAndPaid(
+        client,
+        payment.rows[0].ticket_id,
+      );
+      if (!isFullyPaid(totalPaid, fineTotal)) {
+        await client.query("ROLLBACK");
+        return res
+          .status(400)
+          .json({ error: "Only full payments can be verified." });
+      }
+      await client.query("UPDATE tickets SET status = 'paid' WHERE id = $1", [
+        payment.rows[0].ticket_id,
+      ]);
 
       await client.query(
         `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
-         VALUES ($1, $2, 'PAYMENT_SUBMITTED_BY_MOTORIST', 'payments', $3, $4)`,
+       VALUES ($1, $2, 'PAYMENT_VERIFIED', 'payments', $3, $4)`,
         [
           req.user.id,
           req.user.name,
-          payment.rows[0].id,
-          JSON.stringify({ ticket_id, receipt_no, amount_paid, payment_method }),
+          req.params.id,
+          JSON.stringify({ ticket_id: payment.rows[0].ticket_id }),
         ],
       );
 
       await client.query("COMMIT");
-      res.status(201).json(payment.rows[0]);
-    } catch (err2) {
+      res.json({ success: true });
+    } catch (err) {
       await client.query("ROLLBACK");
-      if (err2.code === "23505") return res.status(409).json({ error: "Receipt number already exists." });
-      console.error("Motorist submit receipt error:", err2);
+      if (err.code === "22P02")
+        return res.status(404).json({ error: "Payment not found" });
+      console.error("Verify payment error:", err);
       res.status(500).json({ error: "Server error" });
     } finally {
       client.release();
     }
-  });
-});
-
-// POST /payments/:id/verify - admin confirms a motorist-submitted receipt is
-// legitimate: marks it verified and settles the ticket.
-router.post("/:id/verify", requireAuth, authorize("admin"), async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
-
-    const payment = await client.query(
-      `SELECT id, ticket_id FROM payments WHERE id = $1 AND submitted_by_motorist = TRUE AND verified = FALSE`,
-      [req.params.id],
-    );
-    if (payment.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "No pending motorist submission found for this payment" });
-    }
-
-    await client.query(
-      `UPDATE payments SET verified = TRUE, verified_by = $1, verified_at = NOW() WHERE id = $2`,
-      [req.user.id, req.params.id],
-    );
-
-    const { fineTotal, amountPaid: totalPaid } = await getFineAndPaid(client, payment.rows[0].ticket_id);
-    const newStatus = isFullyPaid(totalPaid, fineTotal) ? "paid" : "partially_paid";
-    await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [newStatus, payment.rows[0].ticket_id]);
-
-    await client.query(
-      `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, new_value)
-       VALUES ($1, $2, 'PAYMENT_VERIFIED', 'payments', $3, $4)`,
-      [req.user.id, req.user.name, req.params.id, JSON.stringify({ ticket_id: payment.rows[0].ticket_id })],
-    );
-
-    await client.query("COMMIT");
-    res.json({ success: true });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "22P02") return res.status(404).json({ error: "Payment not found" });
-    console.error("Verify payment error:", err);
-    res.status(500).json({ error: "Server error" });
-  } finally {
-    client.release();
-  }
-});
+  },
+);
 
 // POST /payments/:id/reject - admin rejects a motorist-submitted receipt: removes
 // it and reverts the ticket to pending so the motorist can resubmit.
-router.post("/:id/reject", requireAuth, authorize("admin"), async (req, res) => {
-  const { reason } = req.body;
-  const client = await pool.connect();
-  try {
-    await client.query("BEGIN");
+router.post(
+  "/:id/reject",
+  requireAuth,
+  authorize("admin"),
+  async (req, res) => {
+    const { reason } = req.body;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
 
-    const payment = await client.query(
-      `SELECT * FROM payments WHERE id = $1 AND submitted_by_motorist = TRUE AND verified = FALSE`,
-      [req.params.id],
-    );
-    if (payment.rows.length === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ error: "No pending motorist submission found for this payment" });
-    }
+      const payment = await client.query(
+        `SELECT * FROM payments WHERE id = $1 AND submitted_by_motorist = TRUE AND verified = FALSE`,
+        [req.params.id],
+      );
+      if (payment.rows.length === 0) {
+        await client.query("ROLLBACK");
+        return res
+          .status(404)
+          .json({
+            error: "No pending motorist submission found for this payment",
+          });
+      }
 
-    const { amountPaid: remainingPaid } = await getFineAndPaid(client, payment.rows[0].ticket_id, req.params.id);
-    const revertStatus = remainingPaid > 0 ? "partially_paid" : "pending";
+      await client.query("DELETE FROM payments WHERE id = $1", [req.params.id]);
+      await client.query(
+        "UPDATE tickets SET status = 'pending' WHERE id = $1",
+        [payment.rows[0].ticket_id],
+      );
 
-    await client.query("DELETE FROM payments WHERE id = $1", [req.params.id]);
-    await client.query("UPDATE tickets SET status = $1 WHERE id = $2", [revertStatus, payment.rows[0].ticket_id]);
-
-    await client.query(
-      `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, old_value, new_value)
+      await client.query(
+        `INSERT INTO audit_logs (user_id, user_name, action, target_table, target_id, old_value, new_value)
        VALUES ($1, $2, 'PAYMENT_REJECTED', 'payments', $3, $4, $5)`,
-      [
-        req.user.id,
-        req.user.name,
-        req.params.id,
-        JSON.stringify(payment.rows[0]),
-        JSON.stringify({ reason: reason || null }),
-      ],
-    );
+        [
+          req.user.id,
+          req.user.name,
+          req.params.id,
+          JSON.stringify(payment.rows[0]),
+          JSON.stringify({ reason: reason || null }),
+        ],
+      );
 
-    await client.query("COMMIT");
+      await client.query("COMMIT");
 
-    if (payment.rows[0].receipt_filename) {
-      const filePath = path.join(receiptsDir, payment.rows[0].receipt_filename);
-      fs.existsSync(filePath) && fs.unlinkSync(filePath);
+      if (payment.rows[0].receipt_filename) {
+        const filePath = path.join(
+          receiptsDir,
+          payment.rows[0].receipt_filename,
+        );
+        fs.existsSync(filePath) && fs.unlinkSync(filePath);
+      }
+
+      res.json({ success: true });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      if (err.code === "22P02")
+        return res.status(404).json({ error: "Payment not found" });
+      console.error("Reject payment error:", err);
+      res.status(500).json({ error: "Server error" });
+    } finally {
+      client.release();
     }
-
-    res.json({ success: true });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    if (err.code === "22P02") return res.status(404).json({ error: "Payment not found" });
-    console.error("Reject payment error:", err);
-    res.status(500).json({ error: "Server error" });
-  } finally {
-    client.release();
-  }
-});
+  },
+);
 
 // POST /payments/:id/photo - upload a photo of the physical receipt (staff only)
 router.post("/:id/photo", requireAuth, authorize("admin"), (req, res) => {
@@ -317,7 +451,12 @@ router.post("/:id/photo", requireAuth, authorize("admin"), (req, res) => {
       const filePath = path.join(receiptsDir, filename);
       await sharp(req.file.buffer)
         .rotate()
-        .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+        .resize({
+          width: 1600,
+          height: 1600,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
         .jpeg({ quality: 75 })
         .toFile(filePath);
 
@@ -374,24 +513,29 @@ router.get("/:id/photo", optionalAuth, async (req, res) => {
 });
 
 // GET /payments/:ticket_id - get payment(s) for a ticket
-router.get("/:ticket_id", requireAuth, authorize("admin", "enforcer"), async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT p.*, u.name AS processed_by_name
+router.get(
+  "/:ticket_id",
+  requireAuth,
+  authorize("admin", "enforcer"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(
+        `SELECT p.*, u.name AS processed_by_name
        FROM payments p
        LEFT JOIN users u ON u.id = p.processed_by
        WHERE p.ticket_id = $1
        ORDER BY p.paid_at DESC`,
-      [req.params.ticket_id],
-    );
-    res.json(result.rows);
-  } catch (err) {
-    if (err.code === "22P02") {
-      return res.status(404).json({ error: "Ticket not found" });
+        [req.params.ticket_id],
+      );
+      res.json(result.rows);
+    } catch (err) {
+      if (err.code === "22P02") {
+        return res.status(404).json({ error: "Ticket not found" });
+      }
+      console.error("Get payment error:", err);
+      res.status(500).json({ error: "Server error" });
     }
-    console.error("Get payment error:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-});
+  },
+);
 
 module.exports = router;
