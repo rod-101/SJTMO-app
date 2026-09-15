@@ -434,6 +434,43 @@ export function buildReportWorkbook(report) {
     [34, 20, 18],
   );
 
+  const violatorRows = [
+    [
+      "Motorist",
+      "First Name",
+      "Last Name",
+      "License No.",
+      "Birthday",
+      "Address",
+      "Contact",
+      "Tickets",
+      "Fines Assessed",
+    ],
+    ...(report.violators || []).map((row) => [
+      row.motorist_name ||
+        `${row.first_name || ""} ${row.last_name || ""}`.trim() ||
+        "Unknown motorist",
+      row.first_name || "",
+      row.last_name || "",
+      row.license_no || "",
+      row.birthday ? new Date(row.birthday).toISOString().slice(0, 10) : "",
+      row.address || "",
+      row.contact_no || "",
+      number(row.tickets),
+      number(row.fines_assessed),
+    ]),
+  ];
+
+  const violators = addSheet(
+    workbook,
+    "Violators",
+    violatorRows,
+    [26, 18, 18, 18, 14, 30, 20, 12, 18],
+    1,
+  );
+  formatColumns(violators, [7], "#,##0");
+  formatColumns(violators, [8], "#,##0.00");
+
   return workbook;
 }
 

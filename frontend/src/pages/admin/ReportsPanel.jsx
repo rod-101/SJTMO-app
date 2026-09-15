@@ -792,8 +792,64 @@ export default function ReportsPanel() {
               </table>
             </Section>
 
-            {/* ── 8. System activity ── */}
-            <Section title="VIII. System Activity">
+            {/* ── 8. Violators by person ── */}
+            <Section title="VIII. Violators by Person">
+              <table className="report-table">
+                <thead>
+                  <tr>
+                    <th>Motorist</th>
+                    <th>License No.</th>
+                    <th>Birthday</th>
+                    <th>Address</th>
+                    <th>Contact</th>
+                    <th className="num">Tickets</th>
+                    <th className="num">Fines Assessed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(report.violators || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="report-empty">
+                        No violators were recorded in this period.
+                      </td>
+                    </tr>
+                  ) : (
+                    (report.violators || []).map((v) => {
+                      const displayName =
+                        v.motorist_name ||
+                        `${v.first_name || ""} ${v.last_name || ""}`.trim() ||
+                        "Unknown motorist";
+
+                      return (
+                        <tr key={`${displayName}-${v.license_no || "unknown"}`}>
+                          <td>{displayName}</td>
+                          <td>{v.license_no || "—"}</td>
+                          <td>
+                            {v.birthday
+                              ? new Date(v.birthday).toLocaleDateString(
+                                  undefined,
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  },
+                                )
+                              : "—"}
+                          </td>
+                          <td>{v.address || "—"}</td>
+                          <td>{v.contact_no || "—"}</td>
+                          <td className="num">{count(v.tickets)}</td>
+                          <td className="num">{peso(v.fines_assessed)}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </Section>
+
+            {/* ── 9. System activity ── */}
+            <Section title="IX. System Activity">
               <div className="report-stat-grid report-summary-cards">
                 <Stat
                   value={count(report.new_users.total)}

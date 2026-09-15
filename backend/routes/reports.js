@@ -6,8 +6,18 @@ const { requireAuth, authorize } = require("../middleware/auth");
 router.use(requireAuth, authorize("admin"));
 
 const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
 // Period boundaries are plain YYYY-MM-DD strings compared against TIMESTAMPTZ
@@ -52,6 +62,8 @@ const PERIOD_TICKETS_CTE = `
            t.status,
            t.enforcer_name,
            t.motorist_name,
+           t.motorist_id,
+           t.license_no,
            t.date_issued,
            COALESCE(f.fine_total, 0) AS fine_total
     FROM tickets t
@@ -77,7 +89,9 @@ router.get("/", async (req, res) => {
 
     const year = parseInt(req.query.year, 10) || now.getFullYear();
     if (year < 2000 || year > 2100) {
-      return res.status(400).json({ error: "year must be between 2000 and 2100" });
+      return res
+        .status(400)
+        .json({ error: "year must be between 2000 and 2100" });
     }
     let month = parseInt(req.query.month, 10);
     if (!Number.isInteger(month) || month < 1 || month > 12) {
@@ -231,6 +245,29 @@ router.get("/", async (req, res) => {
       range,
     );
 
+    const violatorsQ = pool.query(
+      `${PERIOD_TICKETS_CTE}
+       SELECT COALESCE(
+                NULLIF(trim(pt.motorist_name), ''),
+                CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
+              ) AS motorist_name,
+              m.first_name,
+              m.last_name,
+              COALESCE(m.license_no, pt.license_no) AS license_no,
+              m.birthday,
+              m.address,
+              m.contact_no,
+              COUNT(*) AS tickets,
+              COALESCE(SUM(pt.fine_total), 0) AS fines_assessed
+       FROM period_tickets pt
+       LEFT JOIN motorists m ON m.id = pt.motorist_id
+       GROUP BY pt.motorist_name, m.first_name, m.last_name, m.license_no,
+                m.birthday, m.address, m.contact_no, pt.license_no
+       ORDER BY tickets DESC, motorist_name
+       LIMIT 100`,
+      range,
+    );
+
     const newUsersQ = pool.query(
       `SELECT role, COUNT(*) AS count
        FROM users
@@ -255,11 +292,31 @@ router.get("/", async (req, res) => {
     );
 
     const [
-      summaryR, collectionsR, methodsR, unverifiedR, byTypeR,
-      enforcersR, seriesR, repeatR, newUsersR, prevTicketsR, prevCollectedR,
+      summaryR,
+      collectionsR,
+      methodsR,
+      unverifiedR,
+      byTypeR,
+      enforcersR,
+      seriesR,
+      repeatR,
+      violatorsR,
+      newUsersR,
+      prevTicketsR,
+      prevCollectedR,
     ] = await Promise.all([
-      summaryQ, collectionsQ, methodsQ, unverifiedQ, byTypeQ,
-      enforcersQ, seriesQ, repeatQ, newUsersQ, prevTicketsQ, prevCollectedQ,
+      summaryQ,
+      collectionsQ,
+      methodsQ,
+      unverifiedQ,
+      byTypeQ,
+      enforcersQ,
+      seriesQ,
+      repeatQ,
+      violatorsQ,
+      newUsersQ,
+      prevTicketsQ,
+      prevCollectedQ,
     ]);
 
     const s = summaryR.rows[0];
@@ -287,7 +344,11 @@ router.get("/", async (req, res) => {
     const prevTickets = num(prevTicketsR.rows[0].tickets_issued);
     const prevCollected = num(prevCollectedR.rows[0].total_collected);
     const pct = (curr, prev) =>
-      prev === 0 ? (curr === 0 ? 0 : 100) : Math.round(((curr - prev) / prev) * 1000) / 10;
+      prev === 0
+        ? curr === 0
+          ? 0
+          : 100
+        : Math.round(((curr - prev) / prev) * 1000) / 10;
 
     const newUsers = { motorist: 0, enforcer: 0, admin: 0, total: 0 };
     newUsersR.rows.forEach((r) => {
@@ -319,7 +380,9 @@ router.get("/", async (req, res) => {
         overdue: num(s.overdue),
         unique_motorists: num(s.unique_motorists),
         active_enforcers: num(s.active_enforcers),
-        avg_fine: ticketsIssued ? Math.round((finesAssessed / ticketsIssued) * 100) / 100 : 0,
+        avg_fine: ticketsIssued
+          ? Math.round((finesAssessed / ticketsIssued) * 100) / 100
+          : 0,
       },
       financials: {
         fines_assessed: finesAssessed,
@@ -361,6 +424,17 @@ router.get("/", async (req, res) => {
       })),
       repeat_offenders: repeatR.rows.map((r) => ({
         motorist_name: r.motorist_name,
+        tickets: num(r.tickets),
+        fines_assessed: num(r.fines_assessed),
+      })),
+      violators: violatorsR.rows.map((r) => ({
+        motorist_name: r.motorist_name,
+        first_name: r.first_name,
+        last_name: r.last_name,
+        license_no: r.license_no,
+        birthday: r.birthday,
+        address: r.address,
+        contact_no: r.contact_no,
         tickets: num(r.tickets),
         fines_assessed: num(r.fines_assessed),
       })),
