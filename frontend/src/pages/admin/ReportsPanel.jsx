@@ -76,9 +76,9 @@ function Stat({ value, label, hint }) {
   );
 }
 
-function Section({ title, children }) {
+function Section({ title, children, className = "" }) {
   return (
-    <div className="report-section">
+    <div className={`report-section ${className}`.trim()}>
       <div className="report-section-title">{title}</div>
       {children}
     </div>
@@ -106,33 +106,98 @@ function TrendChart({ series, period }) {
   const values = series.map((entry) => Number(entry.tickets) || 0);
   const maxValue = Math.max(...values, 1);
   const labelEvery = series.length > 12 ? Math.ceil(series.length / 6) : 1;
+  const chartWidth = 800;
+  const chartHeight = 220;
+  const left = 44;
+  const right = 14;
+  const top = 18;
+  const bottom = 42;
+  const plotWidth = chartWidth - left - right;
+  const plotHeight = chartHeight - top - bottom;
+  const points = series.map((entry, index) => {
+    const value = values[index];
+    const x =
+      series.length === 1
+        ? left + plotWidth / 2
+        : left + (index / (series.length - 1)) * plotWidth;
+    const y = top + plotHeight - (value / maxValue) * plotHeight;
+    return { entry, index, value, x, y };
+  });
+  const linePoints = points.map(({ x, y }) => `${x},${y}`).join(" ");
 
   return (
-    <div className="report-trend-chart" aria-label="Report ticket trend chart">
-      {series.map((entry, index) => {
-        const value = Number(entry.tickets) || 0;
-        const height = Math.max(8, (value / maxValue) * 100);
-        const label = formatSeriesLabel(entry.bucket, period);
-        const showLabel =
-          index % labelEvery === 0 || index === series.length - 1;
+    <div
+      className="report-trend-chart"
+      role="img"
+      aria-label="Report ticket trend chart"
+    >
+      <svg
+        className="report-trend-svg"
+        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+          const y = top + plotHeight * (1 - fraction);
+          const value = Math.round(maxValue * fraction);
+          return (
+            <g key={fraction}>
+              <line
+                className="report-trend-gridline"
+                x1={left}
+                x2={chartWidth - right}
+                y1={y}
+                y2={y}
+              />
+              <text className="report-trend-y-label" x={left - 8} y={y + 3}>
+                {count(value)}
+              </text>
+            </g>
+          );
+        })}
 
-        return (
-          <div
-            className="report-trend-col"
-            key={`${entry.bucket}-${index}`}
-            title={`${label}: ${count(value)} tickets`}
-          >
-            <div className="report-trend-count">
-              {value ? count(value) : ""}
-            </div>
-            <div
-              className="report-trend-bar"
-              style={{ height: `${height}%` }}
-            />
-            <div className="report-trend-label">{showLabel ? label : ""}</div>
-          </div>
-        );
-      })}
+        <polyline
+          className="report-trend-line"
+          points={linePoints}
+          vectorEffect="non-scaling-stroke"
+        />
+
+        {points.map(({ entry, index, value, x, y }) => {
+          const label = formatSeriesLabel(entry.bucket, period);
+          const showLabel =
+            index % labelEvery === 0 || index === series.length - 1;
+          const showCount =
+            series.length <= 12 &&
+            (value > 0 || index === 0 || index === series.length - 1);
+
+          return (
+            <g key={`${entry.bucket}-${index}`}>
+              <title>{`${label}: ${count(value)} tickets`}</title>
+              {showCount && (
+                <text
+                  className="report-trend-count"
+                  x={x}
+                  y={Math.max(top + 10, y - 9)}
+                >
+                  {count(value)}
+                </text>
+              )}
+              <circle
+                className="report-trend-point"
+                cx={x}
+                cy={y}
+                r="4"
+                vectorEffect="non-scaling-stroke"
+              />
+              {showLabel && (
+                <text className="report-trend-label" x={x} y={chartHeight - 12}>
+                  {label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }
@@ -468,7 +533,10 @@ export default function ReportsPanel() {
             </Section>
 
             {/* ── 2. Ticket volume trend ── */}
-            <Section title="II. Ticket Volume Trend">
+            <Section
+              title="II. Ticket Volume Trend"
+              className="report-trend-section"
+            >
               <TrendChart series={report.series} period={report.meta.period} />
             </Section>
 

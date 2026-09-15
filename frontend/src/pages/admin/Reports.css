@@ -178,56 +178,61 @@
   font-style: italic;
 }
 
-/* ── Inline bar chart ─────────────────────────────────────────────────────── */
+/* ── Inline line chart ────────────────────────────────────────────────────── */
 .report-trend-chart {
-  display: flex;
-  align-items: flex-end;
-  gap: 8px;
-  height: 170px;
-  padding: 18px 12px 10px;
+  width: 100%;
+  min-height: 220px;
+  padding: 8px 0;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
   background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-.report-trend-col {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: center;
-  height: 100%;
-  min-width: 0;
-}
-
-.report-trend-bar {
+.report-trend-svg {
+  display: block;
   width: 100%;
-  max-width: 30px;
-  background: linear-gradient(180deg, #93c5fd 0%, #2563eb 100%);
-  border-radius: 8px 8px 0 0;
-  min-height: 10px;
-  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.08);
+  height: 220px;
 }
 
-.report-trend-count {
-  font-size: 0.64rem;
-  color: #1f2937;
-  margin-bottom: 6px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: 0.01em;
+.report-trend-gridline {
+  stroke: #e5e7eb;
+  stroke-width: 1;
+}
+
+.report-trend-line {
+  fill: none;
+  stroke: #2563eb;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.report-trend-point {
+  fill: #fff;
+  stroke: #2563eb;
+  stroke-width: 2;
+}
+
+.report-trend-count,
+.report-trend-y-label,
+.report-trend-label {
+  fill: #1f2937;
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.report-trend-y-label {
+  fill: #6b7280;
+  font-size: 10px;
+  text-anchor: end;
 }
 
 .report-trend-label {
-  font-size: 0.58rem;
-  color: #6b7280;
-  margin-top: 7px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-  letter-spacing: 0.02em;
+  fill: #6b7280;
+  font-size: 10px;
+  font-weight: 400;
 }
 
 .report-signatures {
@@ -284,18 +289,8 @@
   .report-section {
     page-break-inside: avoid;
   }
-  .report-trend-chart,
-  .report-trend-col,
-  .report-trend-bar,
-  .report-trend-count,
-  .report-trend-label {
-    display: none !important;
-  }
-  .report-chart-bar {
-    /* Keep the bars solid rather than hollow in browsers that strip
-       backgrounds when "background graphics" is off. */
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  .report-trend-section {
+    display: none;
   }
   .report-table th {
     -webkit-print-color-adjust: exact;

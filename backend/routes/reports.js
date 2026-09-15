@@ -247,22 +247,29 @@ router.get("/", async (req, res) => {
 
     const violatorsQ = pool.query(
       `${PERIOD_TICKETS_CTE}
-       SELECT COALESCE(
-                NULLIF(trim(pt.motorist_name), ''),
-                CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
-              ) AS motorist_name,
-              m.first_name,
-              m.last_name,
-              COALESCE(m.license_no, pt.license_no) AS license_no,
-              m.birthday,
-              m.address,
-              m.contact_no,
-              COUNT(*) AS tickets,
-              COALESCE(SUM(pt.fine_total), 0) AS fines_assessed
+       SELECT
+         COALESCE(
+           m.id::text,
+           LOWER(TRIM(COALESCE(
+             NULLIF(trim(pt.motorist_name), ''),
+             CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
+           )))
+         ) AS person_key,
+         MAX(COALESCE(
+           NULLIF(trim(pt.motorist_name), ''),
+           CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
+         )) AS motorist_name,
+         MAX(m.first_name) AS first_name,
+         MAX(m.last_name) AS last_name,
+         MAX(COALESCE(m.license_no, pt.license_no)) AS license_no,
+         MAX(m.birthday) AS birthday,
+         MAX(m.address) AS address,
+         MAX(m.contact_no) AS contact_no,
+         COUNT(*) AS tickets,
+         COALESCE(SUM(pt.fine_total), 0) AS fines_assessed
        FROM period_tickets pt
        LEFT JOIN motorists m ON m.id = pt.motorist_id
-       GROUP BY pt.motorist_name, m.first_name, m.last_name, m.license_no,
-                m.birthday, m.address, m.contact_no, pt.license_no
+       GROUP BY 1
        ORDER BY tickets DESC, motorist_name
        LIMIT 100`,
       range,
