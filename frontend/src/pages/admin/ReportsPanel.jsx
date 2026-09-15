@@ -281,7 +281,7 @@ export default function ReportsPanel() {
 
             {/* ── 1. Executive summary ── */}
             <Section title="I. Executive Summary">
-              <div className="report-stat-grid">
+              <div className="report-stat-grid report-summary-cards">
                 <Stat
                   value={count(report.summary.tickets_issued)}
                   label="Tickets Issued"
@@ -331,6 +331,80 @@ export default function ReportsPanel() {
                   hint={`${count(report.summary.active_enforcers)} enforcers active`}
                 />
               </div>
+              <table className="report-table report-summary-print-table">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th className="num">Current</th>
+                    <th className="num">Previous</th>
+                    <th className="num">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Tickets Issued</td>
+                    <td className="num">
+                      {count(report.summary.tickets_issued)}
+                    </td>
+                    <td className="num">
+                      {count(report.comparison.previous_tickets)}
+                    </td>
+                    <td className="num">
+                      <Delta
+                        pct={report.comparison.tickets_change_pct}
+                        prev={report.comparison.previous_tickets}
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Total Fines Assessed</td>
+                    <td className="num">
+                      {peso(report.financials.fines_assessed)}
+                    </td>
+                    <td className="num">—</td>
+                    <td className="num">—</td>
+                  </tr>
+                  <tr>
+                    <td>Total Collected</td>
+                    <td className="num">
+                      {peso(report.financials.total_collected)}
+                    </td>
+                    <td className="num">
+                      {peso(report.comparison.previous_collected)}
+                    </td>
+                    <td className="num">
+                      <Delta
+                        pct={report.comparison.collected_change_pct}
+                        prev={report.comparison.previous_collected}
+                      />
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Collection Rate</td>
+                    <td className="num">
+                      {report.financials.collection_rate}%
+                    </td>
+                    <td className="num">—</td>
+                    <td className="num">—</td>
+                  </tr>
+                  <tr>
+                    <td>Outstanding Balance</td>
+                    <td className="num">
+                      {peso(report.financials.outstanding)}
+                    </td>
+                    <td className="num">—</td>
+                    <td className="num">—</td>
+                  </tr>
+                  <tr>
+                    <td>Motorists Cited</td>
+                    <td className="num">
+                      {count(report.summary.unique_motorists)}
+                    </td>
+                    <td className="num">—</td>
+                    <td className="num">—</td>
+                  </tr>
+                </tbody>
+              </table>
             </Section>
 
             {/* ── 2. Ticket status ── */}
@@ -655,7 +729,7 @@ export default function ReportsPanel() {
 
             {/* ── 7. System activity ── */}
             <Section title="VII. System Activity">
-              <div className="report-stat-grid">
+              <div className="report-stat-grid report-summary-cards">
                 <Stat
                   value={count(report.new_users.total)}
                   label="New Accounts Registered"
@@ -673,6 +747,31 @@ export default function ReportsPanel() {
                   label="New Admin Accounts"
                 />
               </div>
+              <table className="report-table report-summary-print-table">
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th className="num">Current</th>
+                    <th className="num">Previous</th>
+                    <th className="num">Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ["New Accounts Registered", report.new_users.total],
+                    ["New Motorist Accounts", report.new_users.motorist],
+                    ["New Enforcer Accounts", report.new_users.enforcer],
+                    ["New Admin Accounts", report.new_users.admin],
+                  ].map(([label, value]) => (
+                    <tr key={label}>
+                      <td>{label}</td>
+                      <td className="num">{count(value)}</td>
+                      <td className="num">—</td>
+                      <td className="num">—</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </Section>
 
             {/* ── Signatures ── */}

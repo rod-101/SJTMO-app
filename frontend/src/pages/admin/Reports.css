@@ -120,9 +120,22 @@
   margin-top: 3px;
 }
 
-.report-delta-up { color: #1a7f37; font-weight: 600; }
-.report-delta-down { color: #b42318; font-weight: 600; }
-.report-delta-flat { color: #777; font-weight: 600; }
+.report-summary-print-table {
+  display: none;
+}
+
+.report-delta-up {
+  color: #1a7f37;
+  font-weight: 600;
+}
+.report-delta-down {
+  color: #b42318;
+  font-weight: 600;
+}
+.report-delta-flat {
+  color: #777;
+  font-weight: 600;
+}
 
 /* ── Tables ───────────────────────────────────────────────────────────────── */
 .report-table {
@@ -271,5 +284,11 @@
   .report-table th {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+  }
+  .report-summary-cards {
+    display: none;
+  }
+  .report-summary-print-table {
+    display: table;
   }
 }
