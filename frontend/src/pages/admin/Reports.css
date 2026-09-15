@@ -179,15 +179,19 @@
 }
 
 /* ── Inline bar chart ─────────────────────────────────────────────────────── */
-.report-chart {
+.report-trend-chart {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
-  height: 130px;
-  padding-top: 6px;
+  gap: 8px;
+  height: 170px;
+  padding: 18px 12px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
-.report-chart-col {
+.report-trend-col {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -197,28 +201,33 @@
   min-width: 0;
 }
 
-.report-chart-bar {
+.report-trend-bar {
   width: 100%;
-  max-width: 34px;
-  background: #2563eb;
-  border-radius: 2px 2px 0 0;
-  min-height: 2px;
+  max-width: 30px;
+  background: linear-gradient(180deg, #93c5fd 0%, #2563eb 100%);
+  border-radius: 8px 8px 0 0;
+  min-height: 10px;
+  box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.08);
 }
 
-.report-chart-count {
-  font-size: 0.62rem;
-  color: #444;
-  margin-bottom: 2px;
+.report-trend-count {
+  font-size: 0.64rem;
+  color: #1f2937;
+  margin-bottom: 6px;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
 }
 
-.report-chart-label {
-  font-size: 0.6rem;
-  color: #666;
-  margin-top: 4px;
+.report-trend-label {
+  font-size: 0.58rem;
+  color: #6b7280;
+  margin-top: 7px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
+  letter-spacing: 0.02em;
 }
 
 .report-signatures {
@@ -274,6 +283,13 @@
   }
   .report-section {
     page-break-inside: avoid;
+  }
+  .report-trend-chart,
+  .report-trend-col,
+  .report-trend-bar,
+  .report-trend-count,
+  .report-trend-label {
+    display: none !important;
   }
   .report-chart-bar {
     /* Keep the bars solid rather than hollow in browsers that strip

@@ -84,6 +84,58 @@ function Section({ title, children }) {
   );
 }
 
+function formatSeriesLabel(bucket, period) {
+  if (!bucket) return "";
+  const date = new Date(bucket);
+  if (Number.isNaN(date.getTime())) return bucket;
+
+  if (period === "yearly") {
+    return date.toLocaleDateString(undefined, { month: "short" });
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
+function TrendChart({ series, period }) {
+  if (!series || series.length === 0) return null;
+
+  const values = series.map((entry) => Number(entry.tickets) || 0);
+  const maxValue = Math.max(...values, 1);
+  const labelEvery = series.length > 12 ? Math.ceil(series.length / 6) : 1;
+
+  return (
+    <div className="report-trend-chart" aria-label="Report ticket trend chart">
+      {series.map((entry, index) => {
+        const value = Number(entry.tickets) || 0;
+        const height = Math.max(8, (value / maxValue) * 100);
+        const label = formatSeriesLabel(entry.bucket, period);
+        const showLabel =
+          index % labelEvery === 0 || index === series.length - 1;
+
+        return (
+          <div
+            className="report-trend-col"
+            key={`${entry.bucket}-${index}`}
+            title={`${label}: ${count(value)} tickets`}
+          >
+            <div className="report-trend-count">
+              {value ? count(value) : ""}
+            </div>
+            <div
+              className="report-trend-bar"
+              style={{ height: `${height}%` }}
+            />
+            <div className="report-trend-label">{showLabel ? label : ""}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function ReportsPanel() {
   const now = new Date();
   const [period, setPeriod] = useState("monthly");
@@ -407,8 +459,13 @@ export default function ReportsPanel() {
               </table>
             </Section>
 
-            {/* ── 2. Ticket status ── */}
-            <Section title="II. Ticket Status Breakdown">
+            {/* ── 2. Ticket volume trend ── */}
+            <Section title="II. Ticket Volume Trend">
+              <TrendChart series={report.series} period={report.meta.period} />
+            </Section>
+
+            {/* ── 3. Ticket status ── */}
+            <Section title="III. Ticket Status Breakdown">
               <table className="report-table">
                 <thead>
                   <tr>
@@ -482,8 +539,8 @@ export default function ReportsPanel() {
               </table>
             </Section>
 
-            {/* ── 3. Financials ── */}
-            <Section title="III. Financial Summary">
+            {/* ── 4. Financials ── */}
+            <Section title="IV. Financial Summary">
               <table className="report-table">
                 <tbody>
                   <tr>
@@ -589,8 +646,8 @@ export default function ReportsPanel() {
               </div>
             </Section>
 
-            {/* ── 4. Violations by type ── */}
-            <Section title="IV. Violations by Type">
+            {/* ── 5. Violations by type ── */}
+            <Section title="V. Violations by Type">
               <table className="report-table">
                 <thead>
                   <tr>
@@ -638,8 +695,8 @@ export default function ReportsPanel() {
               </table>
             </Section>
 
-            {/* ── 5. Enforcer performance ── */}
-            <Section title="V. Enforcer Performance">
+            {/* ── 6. Enforcer performance ── */}
+            <Section title="VI. Enforcer Performance">
               <table className="report-table">
                 <thead>
                   <tr>
@@ -697,8 +754,8 @@ export default function ReportsPanel() {
               </table>
             </Section>
 
-            {/* ── 6. Repeat offenders ── */}
-            <Section title="VI. Repeat Offenders">
+            {/* ── 7. Repeat offenders ── */}
+            <Section title="VII. Repeat Offenders">
               <table className="report-table">
                 <thead>
                   <tr>
@@ -727,8 +784,8 @@ export default function ReportsPanel() {
               </table>
             </Section>
 
-            {/* ── 7. System activity ── */}
-            <Section title="VII. System Activity">
+            {/* ── 8. System activity ── */}
+            <Section title="VIII. System Activity">
               <div className="report-stat-grid report-summary-cards">
                 <Stat
                   value={count(report.new_users.total)}
