@@ -26,6 +26,17 @@ const PAYMENT_METHOD_LABELS = {
   others: "Others",
 };
 
+const STATUS_LABELS = {
+  pending: "Pending",
+  payment_submitted: "Payment Submitted",
+  partially_paid: "Partially Paid",
+  paid: "Paid",
+  resolved: "Resolved",
+  dismissed: "Dismissed",
+  disputed: "Disputed",
+  overdue: "Overdue",
+};
+
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -270,6 +281,18 @@ export default function ReportsPanel() {
       ),
       methodCount: report.financials.by_method.reduce(
         (s, r) => s + r.payment_count,
+        0,
+      ),
+      ticketFine: (report.tickets || []).reduce(
+        (s, r) => s + Number(r.fine_assessed || 0),
+        0,
+      ),
+      ticketPaid: (report.tickets || []).reduce(
+        (s, r) => s + Number(r.amount_paid || 0),
+        0,
+      ),
+      ticketBalance: (report.tickets || []).reduce(
+        (s, r) => s + Number(r.balance_due || 0),
         0,
       ),
     };
@@ -961,6 +984,83 @@ export default function ReportsPanel() {
                   ))}
                 </tbody>
               </table>
+            </Section>
+
+            {/* ── 10. Ticket detail ── */}
+            <Section title="X. Ticket Detail" className="report-ticket-section">
+              <div className="report-ticket-summary">
+                {count((report.tickets || []).length)} tickets issued in this
+                period
+              </div>
+              <div className="report-ticket-table-wrap">
+                <table className="report-table report-ticket-table">
+                  <thead>
+                    <tr>
+                      <th>Ticket No.</th>
+                      <th>Date Issued</th>
+                      <th>Motorist</th>
+                      <th>License No.</th>
+                      <th>Violation(s)</th>
+                      <th>Enforcer</th>
+                      <th>Status</th>
+                      <th className="num">Fine Assessed</th>
+                      <th className="num">Verified Paid</th>
+                      <th className="num">Balance Due</th>
+                      <th>Latest Payment</th>
+                      <th>Method</th>
+                      <th>Receipt No.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(report.tickets || []).length === 0 ? (
+                      <tr>
+                        <td colSpan={13} className="report-empty">
+                          No tickets were issued in this period.
+                        </td>
+                      </tr>
+                    ) : (
+                      report.tickets.map((ticket) => (
+                        <tr key={ticket.ticket_no}>
+                          <td>{ticket.ticket_no || "—"}</td>
+                          <td>{formatDateTime(ticket.date_issued)}</td>
+                          <td>{ticket.motorist_name || "—"}</td>
+                          <td>{ticket.license_no || "—"}</td>
+                          <td className="report-ticket-violations">
+                            {ticket.violation_type || "—"}
+                          </td>
+                          <td>{ticket.enforcer_name || "—"}</td>
+                          <td>
+                            {STATUS_LABELS[ticket.status] ||
+                              ticket.status ||
+                              "—"}
+                          </td>
+                          <td className="num">{peso(ticket.fine_assessed)}</td>
+                          <td className="num">{peso(ticket.amount_paid)}</td>
+                          <td className="num">{peso(ticket.balance_due)}</td>
+                          <td>{formatDateTime(ticket.paid_at)}</td>
+                          <td>
+                            {PAYMENT_METHOD_LABELS[ticket.payment_method] ||
+                              ticket.payment_method ||
+                              "—"}
+                          </td>
+                          <td>{ticket.receipt_no || "—"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                  {(report.tickets || []).length > 0 && (
+                    <tfoot>
+                      <tr>
+                        <td colSpan={7}>Total</td>
+                        <td className="num">{peso(totals.ticketFine)}</td>
+                        <td className="num">{peso(totals.ticketPaid)}</td>
+                        <td className="num">{peso(totals.ticketBalance)}</td>
+                        <td colSpan={3} />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </Section>
 
             {/* ── Signatures ── */}

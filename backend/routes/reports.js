@@ -275,6 +275,39 @@ router.get("/", async (req, res) => {
       range,
     );
 
+    const ticketsQ = pool.query(
+      `${PERIOD_TICKETS_CTE}
+       SELECT pt.ticket_no,
+              pt.date_issued,
+              pt.motorist_name,
+              pt.license_no,
+              t.violation_type,
+              pt.enforcer_name,
+              pt.status,
+              pt.fine_total,
+              COALESCE(paid.amount_paid, 0) AS amount_paid,
+              GREATEST(pt.fine_total - COALESCE(paid.amount_paid, 0), 0) AS balance_due,
+              latest.paid_at,
+              latest.payment_method,
+              latest.receipt_no
+       FROM period_tickets pt
+       JOIN tickets t ON t.id = pt.id
+       LEFT JOIN LATERAL (
+         SELECT SUM(p.amount_paid) AS amount_paid
+         FROM payments p
+         WHERE p.ticket_id = pt.id AND p.verified = TRUE
+       ) paid ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT p.paid_at, p.payment_method, p.receipt_no
+         FROM payments p
+         WHERE p.ticket_id = pt.id
+         ORDER BY p.paid_at DESC NULLS LAST, p.receipt_no DESC
+         LIMIT 1
+       ) latest ON TRUE
+       ORDER BY pt.date_issued DESC, pt.ticket_no`,
+      range,
+    );
+
     const newUsersQ = pool.query(
       `SELECT role, COUNT(*) AS count
        FROM users
@@ -308,6 +341,7 @@ router.get("/", async (req, res) => {
       seriesR,
       repeatR,
       violatorsR,
+      ticketsR,
       newUsersR,
       prevTicketsR,
       prevCollectedR,
@@ -321,6 +355,7 @@ router.get("/", async (req, res) => {
       seriesQ,
       repeatQ,
       violatorsQ,
+      ticketsQ,
       newUsersQ,
       prevTicketsQ,
       prevCollectedQ,
@@ -444,6 +479,21 @@ router.get("/", async (req, res) => {
         contact_no: r.contact_no,
         tickets: num(r.tickets),
         fines_assessed: num(r.fines_assessed),
+      })),
+      tickets: ticketsR.rows.map((r) => ({
+        ticket_no: r.ticket_no,
+        date_issued: r.date_issued,
+        motorist_name: r.motorist_name,
+        license_no: r.license_no,
+        violation_type: r.violation_type,
+        enforcer_name: r.enforcer_name,
+        status: r.status,
+        fine_assessed: num(r.fine_total),
+        amount_paid: num(r.amount_paid),
+        balance_due: num(r.balance_due),
+        paid_at: r.paid_at,
+        payment_method: r.payment_method,
+        receipt_no: r.receipt_no,
       })),
       new_users: newUsers,
       comparison: {

@@ -178,6 +178,36 @@
   font-style: italic;
 }
 
+.report-ticket-summary {
+  font-size: 0.76rem;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.report-ticket-table-wrap {
+  overflow-x: auto;
+}
+
+.report-ticket-table {
+  min-width: 1320px;
+  font-size: 0.72rem;
+}
+
+.report-ticket-table th,
+.report-ticket-table td {
+  padding: 5px 6px;
+  vertical-align: top;
+}
+
+.report-ticket-table th {
+  white-space: nowrap;
+}
+
+.report-ticket-violations {
+  min-width: 150px;
+  white-space: normal;
+}
+
 /* ── Inline line chart ────────────────────────────────────────────────────── */
 .report-trend-chart {
   width: 100%;
@@ -261,7 +291,7 @@
 
 /* ── Print ────────────────────────────────────────────────────────────────── */
 @page {
-  size: A4 portrait;
+  size: A4 landscape;
   margin: 14mm;
 }
 
@@ -287,6 +317,30 @@
     color: #000;
   }
   .report-section {
+    page-break-inside: avoid;
+  }
+  .report-ticket-section {
+    page-break-inside: auto;
+  }
+  .report-ticket-table-wrap {
+    overflow: visible;
+  }
+  .report-ticket-table {
+    min-width: 0;
+    width: 100%;
+    font-size: 0.62rem;
+    table-layout: fixed;
+  }
+  .report-ticket-table th,
+  .report-ticket-table td {
+    padding: 4px 3px;
+    overflow-wrap: anywhere;
+  }
+  .report-ticket-table thead {
+    display: table-header-group;
+  }
+  .report-ticket-table tr {
+    break-inside: avoid;
     page-break-inside: avoid;
   }
   .report-trend-section {

@@ -7,6 +7,17 @@ const PAYMENT_METHOD_LABELS = {
   others: "Others",
 };
 
+const STATUS_LABELS = {
+  pending: "Pending",
+  payment_submitted: "Payment Submitted",
+  partially_paid: "Partially Paid",
+  paid: "Paid",
+  resolved: "Resolved",
+  dismissed: "Dismissed",
+  disputed: "Disputed",
+  overdue: "Overdue",
+};
+
 const number = (value) => Number(value) || 0;
 const ratio = (value, total) =>
   number(total) ? number(value) / number(total) : null;
@@ -470,6 +481,68 @@ export function buildReportWorkbook(report) {
   );
   formatColumns(violators, [7], "#,##0");
   formatColumns(violators, [8], "#,##0.00");
+
+  const tickets = report.tickets || [];
+  const ticketRows = [
+    [
+      "Ticket No.",
+      "Date Issued",
+      "Motorist",
+      "License No.",
+      "Violation(s)",
+      "Enforcer",
+      "Status",
+      "Fine Assessed",
+      "Verified Paid",
+      "Balance Due",
+      "Latest Payment",
+      "Payment Method",
+      "Receipt No.",
+    ],
+    ...tickets.map((row) => [
+      row.ticket_no || "",
+      row.date_issued ? new Date(row.date_issued).toISOString() : "",
+      row.motorist_name || "",
+      row.license_no || "",
+      row.violation_type || "",
+      row.enforcer_name || "",
+      STATUS_LABELS[row.status] || row.status || "",
+      number(row.fine_assessed),
+      number(row.amount_paid),
+      number(row.balance_due),
+      row.paid_at ? new Date(row.paid_at).toISOString() : "",
+      PAYMENT_METHOD_LABELS[row.payment_method] || row.payment_method || "",
+      row.receipt_no || "",
+    ]),
+  ];
+
+  if (tickets.length > 0) {
+    ticketRows.push([
+      "Total",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      tickets.reduce((sum, row) => sum + number(row.fine_assessed), 0),
+      tickets.reduce((sum, row) => sum + number(row.amount_paid), 0),
+      tickets.reduce((sum, row) => sum + number(row.balance_due), 0),
+      "",
+      "",
+      "",
+    ]);
+  }
+
+  const ticketSheet = addSheet(
+    workbook,
+    "Tickets",
+    ticketRows,
+    [16, 22, 24, 16, 30, 22, 20, 16, 16, 16, 22, 18, 20],
+    1,
+    tickets.length > 0 ? { totalRows: [ticketRows.length - 1] } : {},
+  );
+  formatColumns(ticketSheet, [7, 8, 9], "#,##0.00");
 
   return workbook;
 }
