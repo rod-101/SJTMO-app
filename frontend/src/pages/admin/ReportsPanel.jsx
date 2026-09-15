@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { getReport, getReportPeriods } from "../../services/api";
+import { downloadReportWorkbook } from "../../utils/reportExport";
 import "../../App.css";
 import "./Reports.css";
 
@@ -216,7 +217,7 @@ export default function ReportsPanel() {
           <h2 className="um-page-title">Reports</h2>
           <div className="um-page-subtitle">
             Monthly and annual enforcement and collection reports, ready to
-            export as PDF.
+            export as PDF or Excel.
           </div>
         </div>
       </div>
@@ -294,6 +295,13 @@ export default function ReportsPanel() {
             disabled={loading || !report}
           >
             ⤓ Export PDF
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => downloadReportWorkbook(report)}
+            disabled={loading || !report}
+          >
+            ⤓ Export Excel
           </button>
         </div>
       </div>
