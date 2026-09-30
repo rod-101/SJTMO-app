@@ -171,18 +171,110 @@ async function generateReportPdf(report, filters = {}) {
     doc.on("end", () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
-    doc.fontSize(20).text("SJTMO Enforcement Office", { align: "left" });
-    doc.moveDown();
-    doc.fontSize(24).text(title, { bold: true, align: "left" });
-    doc.moveDown(0.5);
+    const coverY = 90;
+    const coverLeft = 60;
+    const coverWidth = 720;
+
+    doc.rect(0, 0, 842, 595).fill("#0f172a");
     doc
-      .fontSize(10)
-      .fillColor("#555")
+      .fillColor("#ffffff")
+      .fontSize(14)
+      .text("SJTMO ENFORCEMENT OFFICE", coverLeft, 58, {
+        width: coverWidth,
+        align: "left",
+      });
+    doc
+      .fillColor("#dbeafe")
+      .fontSize(13)
+      .text("OFFICIAL REPORT DOCUMENT", coverLeft, 92, {
+        width: coverWidth,
+        align: "left",
+      });
+    doc.fillColor("#ffffff").fontSize(28).text(title, coverLeft, 130, {
+      width: coverWidth,
+      align: "left",
+    });
+    doc
+      .fontSize(12)
+      .fillColor("#dbeafe")
+      .text("Period covered", coverLeft, 185, {
+        width: coverWidth,
+        align: "left",
+      });
+    doc
+      .fillColor("#ffffff")
+      .fontSize(16)
+      .text(report.meta?.label || title, coverLeft, 205, {
+        width: coverWidth,
+        align: "left",
+      });
+
+    doc.fillColor("#dbeafe").fontSize(12).text("Generated on", coverLeft, 250, {
+      width: coverWidth,
+      align: "left",
+    });
+    doc
+      .fillColor("#ffffff")
+      .fontSize(15)
       .text(
-        `Generated: ${new Date(report.meta?.generated_at || Date.now()).toLocaleString()}     Prepared by: ${report.meta?.generated_by || "System"}`,
+        new Date(report.meta?.generated_at || Date.now()).toLocaleString(),
+        coverLeft,
+        270,
+        { width: coverWidth, align: "left" },
       );
 
-    const statY = doc.y + 12;
+    doc.fillColor("#dbeafe").fontSize(12).text("Prepared by", coverLeft, 315, {
+      width: coverWidth,
+      align: "left",
+    });
+    doc
+      .fillColor("#ffffff")
+      .fontSize(15)
+      .text(report.meta?.generated_by || "System", coverLeft, 335, {
+        width: coverWidth,
+        align: "left",
+      });
+
+    doc
+      .fillColor("#a7f3d0")
+      .fontSize(11)
+      .text(
+        "This document is issued for official review, monitoring, and recordkeeping.",
+        coverLeft,
+        440,
+        {
+          width: coverWidth,
+          align: "left",
+        },
+      );
+
+    doc.addPage({ size: "A4", layout: "landscape" });
+    doc
+      .fillColor("#0f172a")
+      .fontSize(20)
+      .text("SJTMO Enforcement Office", 50, 45, {
+        width: 500,
+        align: "left",
+      });
+    doc.fillColor("#475569").fontSize(10).text("Official Summary", 50, 70, {
+      width: 200,
+      align: "left",
+    });
+    doc
+      .fillColor("#0f172a")
+      .fontSize(22)
+      .text(title, 50, 90, { width: 500, align: "left" });
+    doc
+      .fillColor("#475569")
+      .fontSize(10)
+      .text(
+        `Generated: ${new Date(report.meta?.generated_at || Date.now()).toLocaleString()}     Prepared by: ${report.meta?.generated_by || "System"}`,
+        50,
+        120,
+        { width: 700, align: "left" },
+      );
+
+    const statY = 150;
     const statX = [50, 190, 330, 470];
     const statWidth = [120, 120, 120, 120];
     const stats = [
@@ -195,7 +287,7 @@ async function generateReportPdf(report, filters = {}) {
     stats.forEach(([label, value], index) => {
       const x = statX[index];
       doc
-        .rect(x, statY, statWidth[index] - 8, 40)
+        .rect(x, statY, statWidth[index] - 8, 42)
         .fillOpacity(0.04)
         .fill("#0f172a");
       doc
@@ -206,10 +298,10 @@ async function generateReportPdf(report, filters = {}) {
       doc
         .fontSize(16)
         .fillColor("#0f172a")
-        .text(value, x + 8, statY + 20, { width: statWidth[index] - 16 });
+        .text(value, x + 8, statY + 22, { width: statWidth[index] - 16 });
     });
 
-    doc.y = statY + 50;
+    doc.y = statY + 60;
     doc.fontSize(12).fillColor("#0f172a").text("Violation mix");
     const violationRows = (byViolation || [])
       .slice(0, 6)
@@ -264,6 +356,41 @@ async function generateReportPdf(report, filters = {}) {
       70,
       [80, 150, 150, 80, 90],
     );
+
+    const approvalY = doc.y + 30;
+    const approvalX = 50;
+    doc
+      .fontSize(12)
+      .fillColor("#0f172a")
+      .text("Approval and certification", approvalX, approvalY, {
+        width: 250,
+      });
+
+    const signatureWidth = 170;
+    const signatureGap = 170;
+    const baseY = approvalY + 30;
+    const signatureData = [
+      { label: "Prepared by", value: report.meta?.generated_by || "System" },
+      { label: "Reviewed by", value: "SJTMO Administration" },
+      { label: "Approved by", value: "Office Head / Reporting Authority" },
+    ];
+
+    signatureData.forEach((entry, index) => {
+      const x = approvalX + index * signatureGap;
+      doc.rect(x, baseY, signatureWidth, 52).lineWidth(1).stroke("#cbd5e1");
+      doc
+        .fontSize(8)
+        .fillColor("#64748b")
+        .text(entry.label, x + 10, baseY + 10, { width: signatureWidth - 20 });
+      doc
+        .fontSize(11)
+        .fillColor("#0f172a")
+        .text(entry.value, x + 10, baseY + 26, { width: signatureWidth - 20 });
+      doc
+        .moveTo(x + 10, baseY + 44)
+        .lineTo(x + signatureWidth - 10, baseY + 44)
+        .stroke("#cbd5e1");
+    });
 
     doc
       .fontSize(9)
