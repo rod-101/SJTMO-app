@@ -1,4 +1,5 @@
 const express = require("express");
+const PDFDocument = require("pdfkit");
 const router = express.Router();
 const pool = require("../db");
 const { requireAuth, authorize } = require("../middleware/auth");
@@ -26,8 +27,6 @@ const MONTH_NAMES = [
 const pad = (n) => String(n).padStart(2, "0");
 const ymd = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
 
-// Returns { start, end, prevStart, prevEnd, label, granularity } for the
-// requested period. `end` is exclusive.
 function resolvePeriod(period, year, month) {
   if (period === "yearly") {
     return {
@@ -53,8 +52,6 @@ function resolvePeriod(period, year, month) {
   };
 }
 
-// Tickets issued inside the window, each with the summed fine of every
-// violation named in its comma-separated violation_type string.
 const PERIOD_TICKETS_CTE = `
   WITH period_tickets AS (
     SELECT t.id,
@@ -80,441 +77,663 @@ const PERIOD_TICKETS_CTE = `
 
 const num = (v) => Number(v) || 0;
 
-// ─── GET /reports ─────────────────────────────────────────────────────────────
-// Query params: period=monthly|yearly, year=YYYY, month=1-12 (monthly only)
-router.get("/", async (req, res) => {
-  try {
-    const period = req.query.period === "yearly" ? "yearly" : "monthly";
-    const now = new Date();
+function normalizeReportFilters(raw = {}) {
+  const now = new Date();
+  const period = raw.period === "yearly" ? "yearly" : "monthly";
+  const year = Number.parseInt(raw.year, 10) || now.getFullYear();
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    return null;
+  }
+  let month = Number.parseInt(raw.month, 10);
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    month = now.getMonth() + 1;
+  }
+  return { period, year, month };
+}
 
-    const year = parseInt(req.query.year, 10) || now.getFullYear();
-    if (year < 2000 || year > 2100) {
+function formatCurrency(value) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 0,
+  }).format(Number(value) || 0);
+}
+
+function formatPercent(value) {
+  return `${Number(value) || 0}%`;
+}
+
+function drawTable(doc, headers, rows, startY, columnWidths) {
+  const rowHeight = 18;
+  const fontSize = 8;
+
+  doc.font("Helvetica-Bold").fontSize(fontSize);
+  let x = 50;
+  headers.forEach((header, index) => {
+    doc.text(header, x, startY, { width: columnWidths[index], align: "left" });
+    x += columnWidths[index];
+  });
+
+  doc
+    .moveTo(50, startY + 14)
+    .lineTo(545, startY + 14)
+    .stroke();
+
+  doc.font("Helvetica").fontSize(fontSize);
+  let currentY = startY + 18;
+  rows.forEach((row) => {
+    if (currentY > 770) {
+      doc.addPage({ size: "A4", layout: "landscape" });
+      currentY = 50;
+    }
+
+    let colX = 50;
+    row.forEach((cell, index) => {
+      doc.text(String(cell ?? ""), colX, currentY, {
+        width: columnWidths[index],
+        align: "left",
+      });
+      colX += columnWidths[index];
+    });
+
+    currentY += rowHeight;
+  });
+
+  return currentY;
+}
+
+async function generateReportPdf(report, filters = {}) {
+  const summary = report.summary || {};
+  const financials = report.financials || {};
+  const byViolation = report.by_violation_type || [];
+  const byEnforcer = report.by_enforcer || [];
+  const tickets = report.tickets || [];
+  const title =
+    filters.period === "yearly"
+      ? `Annual Report ${filters.year}`
+      : `Monthly Report ${MONTH_NAMES[(filters.month || 1) - 1]} ${filters.year}`;
+
+  return new Promise((resolve, reject) => {
+    const doc = new PDFDocument({
+      size: "A4",
+      layout: "landscape",
+      margin: 40,
+    });
+    const buffers = [];
+
+    doc.on("data", (chunk) => buffers.push(chunk));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
+    doc.on("error", reject);
+
+    doc.fontSize(20).text("SJTMO Enforcement Office", { align: "left" });
+    doc.moveDown();
+    doc.fontSize(24).text(title, { bold: true, align: "left" });
+    doc.moveDown(0.5);
+    doc
+      .fontSize(10)
+      .fillColor("#555")
+      .text(
+        `Generated: ${new Date(report.meta?.generated_at || Date.now()).toLocaleString()}     Prepared by: ${report.meta?.generated_by || "System"}`,
+      );
+
+    const statY = doc.y + 12;
+    const statX = [50, 190, 330, 470];
+    const statWidth = [120, 120, 120, 120];
+    const stats = [
+      ["Tickets issued", formatNumber(summary.tickets_issued)],
+      ["Fines assessed", formatCurrency(financials.fines_assessed)],
+      ["Collected", formatCurrency(financials.total_collected)],
+      ["Collection rate", formatPercent(financials.collection_rate)],
+    ];
+
+    stats.forEach(([label, value], index) => {
+      const x = statX[index];
+      doc
+        .rect(x, statY, statWidth[index] - 8, 40)
+        .fillOpacity(0.04)
+        .fill("#0f172a");
+      doc
+        .fillOpacity(1)
+        .fontSize(8)
+        .fillColor("#555")
+        .text(label, x + 8, statY + 8, { width: statWidth[index] - 16 });
+      doc
+        .fontSize(16)
+        .fillColor("#0f172a")
+        .text(value, x + 8, statY + 20, { width: statWidth[index] - 16 });
+    });
+
+    doc.y = statY + 50;
+    doc.fontSize(12).fillColor("#0f172a").text("Violation mix");
+    const violationRows = (byViolation || [])
+      .slice(0, 6)
+      .map((row) => [
+        row.violation_type || "N/A",
+        formatNumber(row.count),
+        formatCurrency(row.amount_assessed),
+      ]);
+    drawTable(
+      doc,
+      ["Violation", "Count", "Assessed"],
+      violationRows.length
+        ? violationRows
+        : [["No violations recorded", "-", "-"]],
+      doc.y + 8,
+      [160, 80, 120],
+    );
+
+    doc.addPage({ size: "A4", layout: "landscape" });
+    doc.fontSize(12).fillColor("#0f172a").text("Enforcer performance");
+    const enforcerRows = (byEnforcer || [])
+      .slice(0, 6)
+      .map((row) => [
+        row.enforcer_name || "Unassigned",
+        formatNumber(row.tickets_issued),
+        formatCurrency(row.fines_assessed),
+        formatCurrency(row.collected),
+      ]);
+    drawTable(
+      doc,
+      ["Enforcer", "Tickets", "Fines", "Collected"],
+      enforcerRows.length ? enforcerRows : [["No data", "-", "-", "-"]],
+      70,
+      [170, 80, 110, 110],
+    );
+
+    doc.addPage({ size: "A4", layout: "landscape" });
+    doc.fontSize(12).fillColor("#0f172a").text("Top tickets");
+    const ticketRows = (tickets || [])
+      .slice(0, 10)
+      .map((row) => [
+        row.ticket_no || "-",
+        row.motorist_name || "-",
+        row.violation_type || "-",
+        row.status || "-",
+        formatCurrency(row.balance_due || 0),
+      ]);
+    drawTable(
+      doc,
+      ["Ticket", "Motorist", "Violation", "Status", "Balance due"],
+      ticketRows.length ? ticketRows : [["No tickets", "-", "-", "-", "-"]],
+      70,
+      [80, 150, 150, 80, 90],
+    );
+
+    doc
+      .fontSize(9)
+      .fillColor("#555")
+      .text(
+        "Official report export generated by the SJTMO reporting system.",
+        50,
+        730,
+        { align: "left" },
+      );
+    doc.text(`Report scope: ${report.meta?.label || title}`, 50, 742, {
+      align: "left",
+    });
+
+    doc.end();
+  });
+}
+
+async function buildReportData({ period, year, month, userName }) {
+  const p = resolvePeriod(period, year, month);
+  const range = [p.start, p.end];
+
+  const summaryQ = pool.query(
+    `${PERIOD_TICKETS_CTE}
+     SELECT COUNT(*)                                              AS tickets_issued,
+            COUNT(*) FILTER (WHERE status = 'pending')            AS pending,
+            COUNT(*) FILTER (WHERE status = 'payment_submitted')  AS payment_submitted,
+            COUNT(*) FILTER (WHERE status = 'partially_paid')     AS partially_paid,
+            COUNT(*) FILTER (WHERE status = 'paid')               AS paid,
+            COUNT(*) FILTER (WHERE status = 'resolved')           AS resolved,
+            COUNT(*) FILTER (WHERE status = 'dismissed')          AS dismissed,
+            COUNT(*) FILTER (WHERE status = 'disputed')           AS disputed,
+            COUNT(*) FILTER (WHERE status = 'overdue')            AS overdue,
+            COALESCE(SUM(fine_total), 0)                          AS fines_assessed,
+            COUNT(DISTINCT motorist_name)                         AS unique_motorists,
+            COUNT(DISTINCT enforcer_name)                         AS active_enforcers
+     FROM period_tickets`,
+    range,
+  );
+
+  const collectionsQ = pool.query(
+    `SELECT COUNT(*)                                   AS payment_count,
+            COALESCE(SUM(amount_paid), 0)              AS total_collected,
+            COUNT(DISTINCT ticket_id)                  AS tickets_paid_against,
+            COUNT(*) FILTER (WHERE submitted_by_motorist) AS online_submissions
+     FROM payments
+     WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date`,
+    range,
+  );
+
+  const methodsQ = pool.query(
+    `SELECT payment_method,
+            COUNT(*)                      AS payment_count,
+            COALESCE(SUM(amount_paid), 0) AS amount
+     FROM payments
+     WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date
+     GROUP BY payment_method
+     ORDER BY amount DESC`,
+    range,
+  );
+
+  const unverifiedQ = pool.query(
+    `SELECT COUNT(*)                      AS payment_count,
+            COALESCE(SUM(amount_paid), 0) AS amount
+     FROM payments
+     WHERE verified = FALSE AND paid_at >= $1::date AND paid_at < $2::date`,
+    range,
+  );
+
+  const byTypeQ = pool.query(
+    `SELECT trim(names.n)                  AS violation_type,
+            COUNT(*)                       AS count,
+            COALESCE(MAX(vt.fine), 0)      AS fine_each,
+            COALESCE(SUM(vt.fine), 0)      AS amount_assessed
+     FROM tickets t
+     CROSS JOIN LATERAL unnest(string_to_array(t.violation_type, ',')) AS names(n)
+     LEFT JOIN violation_types vt ON vt.name = trim(names.n)
+     WHERE t.is_deleted = FALSE
+       AND t.date_issued >= $1::date AND t.date_issued < $2::date
+       AND t.violation_type IS NOT NULL
+     GROUP BY 1
+     ORDER BY count DESC, violation_type`,
+    range,
+  );
+
+  const enforcersQ = pool.query(
+    `${PERIOD_TICKETS_CTE}
+     SELECT COALESCE(NULLIF(trim(pt.enforcer_name), ''), 'Unassigned') AS enforcer_name,
+            COUNT(*)                                                  AS tickets_issued,
+            COUNT(*) FILTER (WHERE pt.status IN ('paid', 'resolved'))  AS settled,
+            COUNT(*) FILTER (WHERE pt.status = 'overdue')              AS overdue,
+            COALESCE(SUM(pt.fine_total), 0)                            AS fines_assessed,
+            COALESCE(SUM(pay.amount), 0)                               AS collected
+     FROM period_tickets pt
+     LEFT JOIN LATERAL (
+       SELECT SUM(p.amount_paid) AS amount
+       FROM payments p
+       WHERE p.ticket_id = pt.id AND p.verified = TRUE
+     ) pay ON TRUE
+     GROUP BY 1
+     ORDER BY tickets_issued DESC, enforcer_name`,
+    range,
+  );
+
+  const step = p.granularity === "day" ? "1 day" : "1 month";
+  const seriesQ = pool.query(
+    `SELECT b.bucket,
+            COALESCE(tk.tickets, 0)   AS tickets,
+            COALESCE(tk.assessed, 0)  AS fines_assessed,
+            COALESCE(pm.collected, 0) AS collected
+     FROM generate_series(
+            $1::timestamptz,
+            ($2::date - interval '1 day')::timestamptz,
+            interval '${step}'
+          ) AS b(bucket)
+     LEFT JOIN (
+       SELECT date_trunc('${p.granularity}', t.date_issued) AS bucket,
+              COUNT(*)                                      AS tickets,
+              COALESCE(SUM(f.fine_total), 0)                AS assessed
+       FROM tickets t
+       LEFT JOIN LATERAL (
+         SELECT SUM(vt.fine) AS fine_total
+         FROM unnest(string_to_array(t.violation_type, ',')) AS names(n)
+         JOIN violation_types vt ON vt.name = trim(names.n)
+       ) f ON TRUE
+       WHERE t.is_deleted = FALSE
+         AND t.date_issued >= $1::date AND t.date_issued < $2::date
+       GROUP BY 1
+     ) tk ON tk.bucket = b.bucket
+     LEFT JOIN (
+       SELECT date_trunc('${p.granularity}', paid_at) AS bucket,
+              COALESCE(SUM(amount_paid), 0)           AS collected
+       FROM payments
+       WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date
+       GROUP BY 1
+     ) pm ON pm.bucket = b.bucket
+     ORDER BY b.bucket`,
+    range,
+  );
+
+  const repeatQ = pool.query(
+    `${PERIOD_TICKETS_CTE}
+     SELECT motorist_name,
+            COUNT(*)                        AS tickets,
+            COALESCE(SUM(fine_total), 0)    AS fines_assessed
+     FROM period_tickets
+     WHERE motorist_name IS NOT NULL
+     GROUP BY 1
+     HAVING COUNT(*) > 1
+     ORDER BY tickets DESC, motorist_name
+     LIMIT 10`,
+    range,
+  );
+
+  const violatorsQ = pool.query(
+    `${PERIOD_TICKETS_CTE}
+     SELECT
+       COALESCE(
+         m.id::text,
+         LOWER(TRIM(COALESCE(
+           NULLIF(trim(pt.motorist_name), ''),
+           CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
+         )))
+       ) AS person_key,
+       MAX(COALESCE(
+         NULLIF(trim(pt.motorist_name), ''),
+         CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
+       )) AS motorist_name,
+       MAX(m.first_name) AS first_name,
+       MAX(m.last_name) AS last_name,
+       MAX(COALESCE(m.license_no, pt.license_no)) AS license_no,
+       MAX(m.birthday) AS birthday,
+       MAX(m.address) AS address,
+       MAX(m.contact_no) AS contact_no,
+       COUNT(*) AS tickets,
+       COALESCE(SUM(pt.fine_total), 0) AS fines_assessed
+     FROM period_tickets pt
+     LEFT JOIN motorists m ON m.id = pt.motorist_id
+     GROUP BY 1
+     ORDER BY tickets DESC, motorist_name
+     LIMIT 100`,
+    range,
+  );
+
+  const ticketsQ = pool.query(
+    `${PERIOD_TICKETS_CTE}
+     SELECT pt.ticket_no,
+            pt.date_issued,
+            pt.motorist_name,
+            pt.license_no,
+            t.violation_type,
+            pt.enforcer_name,
+            pt.status,
+            pt.fine_total,
+            COALESCE(paid.amount_paid, 0) AS amount_paid,
+            GREATEST(pt.fine_total - COALESCE(paid.amount_paid, 0), 0) AS balance_due,
+            latest.paid_at,
+            latest.payment_method,
+            latest.receipt_no
+     FROM period_tickets pt
+     JOIN tickets t ON t.id = pt.id
+     LEFT JOIN LATERAL (
+       SELECT SUM(p.amount_paid) AS amount_paid
+       FROM payments p
+       WHERE p.ticket_id = pt.id AND p.verified = TRUE
+     ) paid ON TRUE
+     LEFT JOIN LATERAL (
+       SELECT p.paid_at, p.payment_method, p.receipt_no
+       FROM payments p
+       WHERE p.ticket_id = pt.id
+       ORDER BY p.paid_at DESC NULLS LAST, p.receipt_no DESC
+       LIMIT 1
+     ) latest ON TRUE
+     ORDER BY pt.date_issued DESC, pt.ticket_no`,
+    range,
+  );
+
+  const newUsersQ = pool.query(
+    `SELECT role, COUNT(*) AS count
+     FROM users
+     WHERE created_at >= $1::date AND created_at < $2::date
+     GROUP BY role`,
+    range,
+  );
+
+  const prevRange = [p.prevStart, p.prevEnd];
+  const prevTicketsQ = pool.query(
+    `${PERIOD_TICKETS_CTE}
+     SELECT COUNT(*) AS tickets_issued, COALESCE(SUM(fine_total), 0) AS fines_assessed
+     FROM period_tickets`,
+    prevRange,
+  );
+  const prevCollectedQ = pool.query(
+    `SELECT COALESCE(SUM(amount_paid), 0) AS total_collected
+     FROM payments
+     WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date`,
+    prevRange,
+  );
+
+  const [
+    summaryR,
+    collectionsR,
+    methodsR,
+    unverifiedR,
+    byTypeR,
+    enforcersR,
+    seriesR,
+    repeatR,
+    violatorsR,
+    ticketsR,
+    newUsersR,
+    prevTicketsR,
+    prevCollectedR,
+  ] = await Promise.all([
+    summaryQ,
+    collectionsQ,
+    methodsQ,
+    unverifiedQ,
+    byTypeQ,
+    enforcersQ,
+    seriesQ,
+    repeatQ,
+    violatorsQ,
+    ticketsQ,
+    newUsersQ,
+    prevTicketsQ,
+    prevCollectedQ,
+  ]);
+
+  const s = summaryR.rows[0];
+  const c = collectionsR.rows[0];
+  const u = unverifiedR.rows[0];
+  const finesAssessed = num(s.fines_assessed);
+  const totalCollected = num(c.total_collected);
+  const ticketsIssued = num(s.tickets_issued);
+
+  const outstandingR = await pool.query(
+    `${PERIOD_TICKETS_CTE}
+     SELECT COALESCE(SUM(GREATEST(pt.fine_total - COALESCE(pay.amount, 0), 0)), 0) AS outstanding
+     FROM period_tickets pt
+     LEFT JOIN LATERAL (
+       SELECT SUM(p.amount_paid) AS amount
+       FROM payments p
+       WHERE p.ticket_id = pt.id AND p.verified = TRUE
+     ) pay ON TRUE`,
+    range,
+  );
+
+  const prevTickets = num(prevTicketsR.rows[0].tickets_issued);
+  const prevCollected = num(prevCollectedR.rows[0].total_collected);
+  const pct = (curr, prev) =>
+    prev === 0
+      ? curr === 0
+        ? 0
+        : 100
+      : Math.round(((curr - prev) / prev) * 1000) / 10;
+
+  const newUsers = { motorist: 0, enforcer: 0, admin: 0, total: 0 };
+  newUsersR.rows.forEach((r) => {
+    newUsers[r.role] = num(r.count);
+    newUsers.total += num(r.count);
+  });
+
+  return {
+    meta: {
+      period,
+      year,
+      month: period === "monthly" ? month : null,
+      label: p.label,
+      start: p.start,
+      end: p.end,
+      granularity: p.granularity,
+      generated_at: new Date().toISOString(),
+      generated_by: userName || "System",
+    },
+    summary: {
+      tickets_issued: ticketsIssued,
+      pending: num(s.pending),
+      payment_submitted: num(s.payment_submitted),
+      partially_paid: num(s.partially_paid),
+      paid: num(s.paid),
+      resolved: num(s.resolved),
+      dismissed: num(s.dismissed),
+      disputed: num(s.disputed),
+      overdue: num(s.overdue),
+      unique_motorists: num(s.unique_motorists),
+      active_enforcers: num(s.active_enforcers),
+      avg_fine: ticketsIssued
+        ? Math.round((finesAssessed / ticketsIssued) * 100) / 100
+        : 0,
+    },
+    financials: {
+      fines_assessed: finesAssessed,
+      total_collected: totalCollected,
+      outstanding: num(outstandingR.rows[0].outstanding),
+      collection_rate: finesAssessed
+        ? Math.round((totalCollected / finesAssessed) * 1000) / 10
+        : 0,
+      payment_count: num(c.payment_count),
+      tickets_paid_against: num(c.tickets_paid_against),
+      online_submissions: num(c.online_submissions),
+      unverified_count: num(u.payment_count),
+      unverified_amount: num(u.amount),
+      by_method: methodsR.rows.map((r) => ({
+        payment_method: r.payment_method,
+        payment_count: num(r.payment_count),
+        amount: num(r.amount),
+      })),
+    },
+    by_violation_type: byTypeR.rows.map((r) => ({
+      violation_type: r.violation_type,
+      count: num(r.count),
+      fine_each: num(r.fine_each),
+      amount_assessed: num(r.amount_assessed),
+    })),
+    by_enforcer: enforcersR.rows.map((r) => ({
+      enforcer_name: r.enforcer_name,
+      tickets_issued: num(r.tickets_issued),
+      settled: num(r.settled),
+      overdue: num(r.overdue),
+      fines_assessed: num(r.fines_assessed),
+      collected: num(r.collected),
+    })),
+    series: seriesR.rows.map((r) => ({
+      bucket: r.bucket,
+      tickets: num(r.tickets),
+      fines_assessed: num(r.fines_assessed),
+      collected: num(r.collected),
+    })),
+    repeat_offenders: repeatR.rows.map((r) => ({
+      motorist_name: r.motorist_name,
+      tickets: num(r.tickets),
+      fines_assessed: num(r.fines_assessed),
+    })),
+    violators: violatorsR.rows.map((r) => ({
+      motorist_name: r.motorist_name,
+      first_name: r.first_name,
+      last_name: r.last_name,
+      license_no: r.license_no,
+      birthday: r.birthday,
+      address: r.address,
+      contact_no: r.contact_no,
+      tickets: num(r.tickets),
+      fines_assessed: num(r.fines_assessed),
+    })),
+    tickets: ticketsR.rows.map((r) => ({
+      ticket_no: r.ticket_no,
+      date_issued: r.date_issued,
+      motorist_name: r.motorist_name,
+      license_no: r.license_no,
+      violation_type: r.violation_type,
+      enforcer_name: r.enforcer_name,
+      status: r.status,
+      fine_assessed: num(r.fine_total),
+      amount_paid: num(r.amount_paid),
+      balance_due: num(r.balance_due),
+      paid_at: r.paid_at,
+      payment_method: r.payment_method,
+      receipt_no: r.receipt_no,
+    })),
+    new_users: newUsers,
+    comparison: {
+      previous_label:
+        period === "yearly"
+          ? String(year - 1)
+          : `${MONTH_NAMES[(month === 1 ? 12 : month - 1) - 1]} ${month === 1 ? year - 1 : year}`,
+      previous_tickets: prevTickets,
+      previous_collected: prevCollected,
+      tickets_change_pct: pct(ticketsIssued, prevTickets),
+      collected_change_pct: pct(totalCollected, prevCollected),
+    },
+  };
+}
+
+async function handleReportExport(req, res) {
+  try {
+    const filters = normalizeReportFilters(req.body || req.query || {});
+    if (!filters) {
       return res
         .status(400)
         .json({ error: "year must be between 2000 and 2100" });
     }
-    let month = parseInt(req.query.month, 10);
-    if (!Number.isInteger(month) || month < 1 || month > 12) {
-      month = now.getMonth() + 1;
+
+    const report = await buildReportData({
+      ...filters,
+      userName: req.user.name,
+    });
+
+    const pdfBuffer = await generateReportPdf(report, filters);
+    const filename = `${filters.period === "yearly" ? "annual" : "monthly"}-report-${filters.year}${
+      filters.period === "monthly"
+        ? `-${String(filters.month).padStart(2, "0")}`
+        : ""
+    }.pdf`;
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error("Generate report PDF error:", err);
+    res.status(500).json({ error: "Failed to generate report PDF" });
+  }
+}
+
+// ─── GET /reports ─────────────────────────────────────────────────────────────
+// Query params: period=monthly|yearly, year=YYYY, month=1-12 (monthly only)
+router.get("/", async (req, res) => {
+  try {
+    const filters = normalizeReportFilters(req.query || {});
+    if (!filters) {
+      return res
+        .status(400)
+        .json({ error: "year must be between 2000 and 2100" });
     }
 
-    const p = resolvePeriod(period, year, month);
-    const range = [p.start, p.end];
-
-    // Ticket volume, status mix and fines assessed for the period.
-    const summaryQ = pool.query(
-      `${PERIOD_TICKETS_CTE}
-       SELECT COUNT(*)                                              AS tickets_issued,
-              COUNT(*) FILTER (WHERE status = 'pending')            AS pending,
-              COUNT(*) FILTER (WHERE status = 'payment_submitted')  AS payment_submitted,
-              COUNT(*) FILTER (WHERE status = 'partially_paid')     AS partially_paid,
-              COUNT(*) FILTER (WHERE status = 'paid')               AS paid,
-              COUNT(*) FILTER (WHERE status = 'resolved')           AS resolved,
-              COUNT(*) FILTER (WHERE status = 'dismissed')          AS dismissed,
-              COUNT(*) FILTER (WHERE status = 'disputed')           AS disputed,
-              COUNT(*) FILTER (WHERE status = 'overdue')            AS overdue,
-              COALESCE(SUM(fine_total), 0)                          AS fines_assessed,
-              COUNT(DISTINCT motorist_name)                         AS unique_motorists,
-              COUNT(DISTINCT enforcer_name)                         AS active_enforcers
-       FROM period_tickets`,
-      range,
-    );
-
-    // Money actually collected during the period, keyed on payment date — a
-    // payment made this month against last month's ticket belongs here.
-    const collectionsQ = pool.query(
-      `SELECT COUNT(*)                                   AS payment_count,
-              COALESCE(SUM(amount_paid), 0)              AS total_collected,
-              COUNT(DISTINCT ticket_id)                  AS tickets_paid_against,
-              COUNT(*) FILTER (WHERE submitted_by_motorist) AS online_submissions
-       FROM payments
-       WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date`,
-      range,
-    );
-
-    const methodsQ = pool.query(
-      `SELECT payment_method,
-              COUNT(*)                      AS payment_count,
-              COALESCE(SUM(amount_paid), 0) AS amount
-       FROM payments
-       WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date
-       GROUP BY payment_method
-       ORDER BY amount DESC`,
-      range,
-    );
-
-    // Motorist-submitted receipts still awaiting admin verification.
-    const unverifiedQ = pool.query(
-      `SELECT COUNT(*)                      AS payment_count,
-              COALESCE(SUM(amount_paid), 0) AS amount
-       FROM payments
-       WHERE verified = FALSE AND paid_at >= $1::date AND paid_at < $2::date`,
-      range,
-    );
-
-    // One row per violation named on a ticket — a ticket citing two offences
-    // contributes to both rows, which is what a per-offence report wants.
-    const byTypeQ = pool.query(
-      `SELECT trim(names.n)                  AS violation_type,
-              COUNT(*)                       AS count,
-              COALESCE(MAX(vt.fine), 0)      AS fine_each,
-              COALESCE(SUM(vt.fine), 0)      AS amount_assessed
-       FROM tickets t
-       CROSS JOIN LATERAL unnest(string_to_array(t.violation_type, ',')) AS names(n)
-       LEFT JOIN violation_types vt ON vt.name = trim(names.n)
-       WHERE t.is_deleted = FALSE
-         AND t.date_issued >= $1::date AND t.date_issued < $2::date
-         AND t.violation_type IS NOT NULL
-       GROUP BY 1
-       ORDER BY count DESC, violation_type`,
-      range,
-    );
-
-    // Per-enforcer output. `collected` counts verified payments against that
-    // enforcer's period tickets whenever they were paid, so the column reads
-    // as "how much of what this enforcer issued has come in".
-    const enforcersQ = pool.query(
-      `${PERIOD_TICKETS_CTE}
-       SELECT COALESCE(NULLIF(trim(pt.enforcer_name), ''), 'Unassigned') AS enforcer_name,
-              COUNT(*)                                                  AS tickets_issued,
-              COUNT(*) FILTER (WHERE pt.status IN ('paid', 'resolved'))  AS settled,
-              COUNT(*) FILTER (WHERE pt.status = 'overdue')              AS overdue,
-              COALESCE(SUM(pt.fine_total), 0)                            AS fines_assessed,
-              COALESCE(SUM(pay.amount), 0)                               AS collected
-       FROM period_tickets pt
-       LEFT JOIN LATERAL (
-         SELECT SUM(p.amount_paid) AS amount
-         FROM payments p
-         WHERE p.ticket_id = pt.id AND p.verified = TRUE
-       ) pay ON TRUE
-       GROUP BY 1
-       ORDER BY tickets_issued DESC, enforcer_name`,
-      range,
-    );
-
-    // Time series: day-by-day for a monthly report, month-by-month for a
-    // yearly one. generate_series keeps empty buckets in the table.
-    const step = p.granularity === "day" ? "1 day" : "1 month";
-    const seriesQ = pool.query(
-      `SELECT b.bucket,
-              COALESCE(tk.tickets, 0)   AS tickets,
-              COALESCE(tk.assessed, 0)  AS fines_assessed,
-              COALESCE(pm.collected, 0) AS collected
-       FROM generate_series(
-              $1::timestamptz,
-              ($2::date - interval '1 day')::timestamptz,
-              interval '${step}'
-            ) AS b(bucket)
-       LEFT JOIN (
-         SELECT date_trunc('${p.granularity}', t.date_issued) AS bucket,
-                COUNT(*)                                      AS tickets,
-                COALESCE(SUM(f.fine_total), 0)                AS assessed
-         FROM tickets t
-         LEFT JOIN LATERAL (
-           SELECT SUM(vt.fine) AS fine_total
-           FROM unnest(string_to_array(t.violation_type, ',')) AS names(n)
-           JOIN violation_types vt ON vt.name = trim(names.n)
-         ) f ON TRUE
-         WHERE t.is_deleted = FALSE
-           AND t.date_issued >= $1::date AND t.date_issued < $2::date
-         GROUP BY 1
-       ) tk ON tk.bucket = b.bucket
-       LEFT JOIN (
-         SELECT date_trunc('${p.granularity}', paid_at) AS bucket,
-                COALESCE(SUM(amount_paid), 0)           AS collected
-         FROM payments
-         WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date
-         GROUP BY 1
-       ) pm ON pm.bucket = b.bucket
-       ORDER BY b.bucket`,
-      range,
-    );
-
-    // Motorists cited more than once inside the period.
-    const repeatQ = pool.query(
-      `${PERIOD_TICKETS_CTE}
-       SELECT motorist_name,
-              COUNT(*)                        AS tickets,
-              COALESCE(SUM(fine_total), 0)    AS fines_assessed
-       FROM period_tickets
-       WHERE motorist_name IS NOT NULL
-       GROUP BY 1
-       HAVING COUNT(*) > 1
-       ORDER BY tickets DESC, motorist_name
-       LIMIT 10`,
-      range,
-    );
-
-    const violatorsQ = pool.query(
-      `${PERIOD_TICKETS_CTE}
-       SELECT
-         COALESCE(
-           m.id::text,
-           LOWER(TRIM(COALESCE(
-             NULLIF(trim(pt.motorist_name), ''),
-             CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
-           )))
-         ) AS person_key,
-         MAX(COALESCE(
-           NULLIF(trim(pt.motorist_name), ''),
-           CONCAT(COALESCE(m.first_name, ''), ' ', COALESCE(m.last_name, ''))
-         )) AS motorist_name,
-         MAX(m.first_name) AS first_name,
-         MAX(m.last_name) AS last_name,
-         MAX(COALESCE(m.license_no, pt.license_no)) AS license_no,
-         MAX(m.birthday) AS birthday,
-         MAX(m.address) AS address,
-         MAX(m.contact_no) AS contact_no,
-         COUNT(*) AS tickets,
-         COALESCE(SUM(pt.fine_total), 0) AS fines_assessed
-       FROM period_tickets pt
-       LEFT JOIN motorists m ON m.id = pt.motorist_id
-       GROUP BY 1
-       ORDER BY tickets DESC, motorist_name
-       LIMIT 100`,
-      range,
-    );
-
-    const ticketsQ = pool.query(
-      `${PERIOD_TICKETS_CTE}
-       SELECT pt.ticket_no,
-              pt.date_issued,
-              pt.motorist_name,
-              pt.license_no,
-              t.violation_type,
-              pt.enforcer_name,
-              pt.status,
-              pt.fine_total,
-              COALESCE(paid.amount_paid, 0) AS amount_paid,
-              GREATEST(pt.fine_total - COALESCE(paid.amount_paid, 0), 0) AS balance_due,
-              latest.paid_at,
-              latest.payment_method,
-              latest.receipt_no
-       FROM period_tickets pt
-       JOIN tickets t ON t.id = pt.id
-       LEFT JOIN LATERAL (
-         SELECT SUM(p.amount_paid) AS amount_paid
-         FROM payments p
-         WHERE p.ticket_id = pt.id AND p.verified = TRUE
-       ) paid ON TRUE
-       LEFT JOIN LATERAL (
-         SELECT p.paid_at, p.payment_method, p.receipt_no
-         FROM payments p
-         WHERE p.ticket_id = pt.id
-         ORDER BY p.paid_at DESC NULLS LAST, p.receipt_no DESC
-         LIMIT 1
-       ) latest ON TRUE
-       ORDER BY pt.date_issued DESC, pt.ticket_no`,
-      range,
-    );
-
-    const newUsersQ = pool.query(
-      `SELECT role, COUNT(*) AS count
-       FROM users
-       WHERE created_at >= $1::date AND created_at < $2::date
-       GROUP BY role`,
-      range,
-    );
-
-    // Same two headline numbers for the preceding period, for the delta row.
-    const prevRange = [p.prevStart, p.prevEnd];
-    const prevTicketsQ = pool.query(
-      `${PERIOD_TICKETS_CTE}
-       SELECT COUNT(*) AS tickets_issued, COALESCE(SUM(fine_total), 0) AS fines_assessed
-       FROM period_tickets`,
-      prevRange,
-    );
-    const prevCollectedQ = pool.query(
-      `SELECT COALESCE(SUM(amount_paid), 0) AS total_collected
-       FROM payments
-       WHERE verified = TRUE AND paid_at >= $1::date AND paid_at < $2::date`,
-      prevRange,
-    );
-
-    const [
-      summaryR,
-      collectionsR,
-      methodsR,
-      unverifiedR,
-      byTypeR,
-      enforcersR,
-      seriesR,
-      repeatR,
-      violatorsR,
-      ticketsR,
-      newUsersR,
-      prevTicketsR,
-      prevCollectedR,
-    ] = await Promise.all([
-      summaryQ,
-      collectionsQ,
-      methodsQ,
-      unverifiedQ,
-      byTypeQ,
-      enforcersQ,
-      seriesQ,
-      repeatQ,
-      violatorsQ,
-      ticketsQ,
-      newUsersQ,
-      prevTicketsQ,
-      prevCollectedQ,
-    ]);
-
-    const s = summaryR.rows[0];
-    const c = collectionsR.rows[0];
-    const u = unverifiedR.rows[0];
-
-    const finesAssessed = num(s.fines_assessed);
-    const totalCollected = num(c.total_collected);
-    const ticketsIssued = num(s.tickets_issued);
-
-    // Outstanding is scoped to tickets issued in the period: everything billed
-    // minus everything ever collected against those same tickets.
-    const outstandingR = await pool.query(
-      `${PERIOD_TICKETS_CTE}
-       SELECT COALESCE(SUM(GREATEST(pt.fine_total - COALESCE(pay.amount, 0), 0)), 0) AS outstanding
-       FROM period_tickets pt
-       LEFT JOIN LATERAL (
-         SELECT SUM(p.amount_paid) AS amount
-         FROM payments p
-         WHERE p.ticket_id = pt.id AND p.verified = TRUE
-       ) pay ON TRUE`,
-      range,
-    );
-
-    const prevTickets = num(prevTicketsR.rows[0].tickets_issued);
-    const prevCollected = num(prevCollectedR.rows[0].total_collected);
-    const pct = (curr, prev) =>
-      prev === 0
-        ? curr === 0
-          ? 0
-          : 100
-        : Math.round(((curr - prev) / prev) * 1000) / 10;
-
-    const newUsers = { motorist: 0, enforcer: 0, admin: 0, total: 0 };
-    newUsersR.rows.forEach((r) => {
-      newUsers[r.role] = num(r.count);
-      newUsers.total += num(r.count);
+    const report = await buildReportData({
+      ...filters,
+      userName: req.user.name,
     });
-
-    res.json({
-      meta: {
-        period,
-        year,
-        month: period === "monthly" ? month : null,
-        label: p.label,
-        start: p.start,
-        end: p.end,
-        granularity: p.granularity,
-        generated_at: new Date().toISOString(),
-        generated_by: req.user.name,
-      },
-      summary: {
-        tickets_issued: ticketsIssued,
-        pending: num(s.pending),
-        payment_submitted: num(s.payment_submitted),
-        partially_paid: num(s.partially_paid),
-        paid: num(s.paid),
-        resolved: num(s.resolved),
-        dismissed: num(s.dismissed),
-        disputed: num(s.disputed),
-        overdue: num(s.overdue),
-        unique_motorists: num(s.unique_motorists),
-        active_enforcers: num(s.active_enforcers),
-        avg_fine: ticketsIssued
-          ? Math.round((finesAssessed / ticketsIssued) * 100) / 100
-          : 0,
-      },
-      financials: {
-        fines_assessed: finesAssessed,
-        total_collected: totalCollected,
-        outstanding: num(outstandingR.rows[0].outstanding),
-        collection_rate: finesAssessed
-          ? Math.round((totalCollected / finesAssessed) * 1000) / 10
-          : 0,
-        payment_count: num(c.payment_count),
-        tickets_paid_against: num(c.tickets_paid_against),
-        online_submissions: num(c.online_submissions),
-        unverified_count: num(u.payment_count),
-        unverified_amount: num(u.amount),
-        by_method: methodsR.rows.map((r) => ({
-          payment_method: r.payment_method,
-          payment_count: num(r.payment_count),
-          amount: num(r.amount),
-        })),
-      },
-      by_violation_type: byTypeR.rows.map((r) => ({
-        violation_type: r.violation_type,
-        count: num(r.count),
-        fine_each: num(r.fine_each),
-        amount_assessed: num(r.amount_assessed),
-      })),
-      by_enforcer: enforcersR.rows.map((r) => ({
-        enforcer_name: r.enforcer_name,
-        tickets_issued: num(r.tickets_issued),
-        settled: num(r.settled),
-        overdue: num(r.overdue),
-        fines_assessed: num(r.fines_assessed),
-        collected: num(r.collected),
-      })),
-      series: seriesR.rows.map((r) => ({
-        bucket: r.bucket,
-        tickets: num(r.tickets),
-        fines_assessed: num(r.fines_assessed),
-        collected: num(r.collected),
-      })),
-      repeat_offenders: repeatR.rows.map((r) => ({
-        motorist_name: r.motorist_name,
-        tickets: num(r.tickets),
-        fines_assessed: num(r.fines_assessed),
-      })),
-      violators: violatorsR.rows.map((r) => ({
-        motorist_name: r.motorist_name,
-        first_name: r.first_name,
-        last_name: r.last_name,
-        license_no: r.license_no,
-        birthday: r.birthday,
-        address: r.address,
-        contact_no: r.contact_no,
-        tickets: num(r.tickets),
-        fines_assessed: num(r.fines_assessed),
-      })),
-      tickets: ticketsR.rows.map((r) => ({
-        ticket_no: r.ticket_no,
-        date_issued: r.date_issued,
-        motorist_name: r.motorist_name,
-        license_no: r.license_no,
-        violation_type: r.violation_type,
-        enforcer_name: r.enforcer_name,
-        status: r.status,
-        fine_assessed: num(r.fine_total),
-        amount_paid: num(r.amount_paid),
-        balance_due: num(r.balance_due),
-        paid_at: r.paid_at,
-        payment_method: r.payment_method,
-        receipt_no: r.receipt_no,
-      })),
-      new_users: newUsers,
-      comparison: {
-        previous_label:
-          period === "yearly"
-            ? String(year - 1)
-            : `${MONTH_NAMES[(month === 1 ? 12 : month - 1) - 1]} ${month === 1 ? year - 1 : year}`,
-        previous_tickets: prevTickets,
-        previous_collected: prevCollected,
-        tickets_change_pct: pct(ticketsIssued, prevTickets),
-        collected_change_pct: pct(totalCollected, prevCollected),
-      },
-    });
+    res.json(report);
   } catch (err) {
     console.error("Get report error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
 
+router.get("/export", handleReportExport);
+router.post("/export", handleReportExport);
+
 // ─── GET /reports/periods ─────────────────────────────────────────────────────
-// Years that actually contain data, so the picker never offers empty periods.
 router.get("/periods", async (req, res) => {
   try {
     const result = await pool.query(

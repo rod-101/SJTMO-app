@@ -140,9 +140,9 @@ export const resetPassword = (token, password) =>
   }).then(handleResponse);
 
 export const getInviteInfo = (token) =>
-  fetch(`${BASE_URL}/login/invite-info?token=${encodeURIComponent(token)}`).then(
-    handleResponse,
-  );
+  fetch(
+    `${BASE_URL}/login/invite-info?token=${encodeURIComponent(token)}`,
+  ).then(handleResponse);
 
 export const acceptInvite = (token, password) =>
   fetch(`${BASE_URL}/login/accept-invite`, {
@@ -405,7 +405,9 @@ export const getUserActivity = (id) =>
 
 export const getSystemLogs = (params = {}) => {
   const query = new URLSearchParams(
-    Object.fromEntries(Object.entries(params).filter(([, v]) => v !== "" && v != null)),
+    Object.fromEntries(
+      Object.entries(params).filter(([, v]) => v !== "" && v != null),
+    ),
   ).toString();
   return authedFetch(`${BASE_URL}/logs${query ? `?${query}` : ""}`, {
     headers: authHeadersOnly(),
@@ -419,10 +421,52 @@ export const getSystemLogActions = () =>
 export const getReport = ({ period, year, month }) => {
   const query = new URLSearchParams(
     Object.fromEntries(
-      Object.entries({ period, year, month }).filter(([, v]) => v !== "" && v != null),
+      Object.entries({ period, year, month }).filter(
+        ([, v]) => v !== "" && v != null,
+      ),
     ),
   ).toString();
-  return authedFetch(`${BASE_URL}/reports?${query}`, { headers: authHeadersOnly() });
+  return authedFetch(`${BASE_URL}/reports?${query}`, {
+    headers: authHeadersOnly(),
+  });
+};
+
+export const exportReportPdf = async (filters = {}) => {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}/reports/export`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(filters),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    let message = "Failed to export report PDF";
+    try {
+      const parsed = JSON.parse(text);
+      message = parsed.error || message;
+    } catch {
+      message = text || message;
+    }
+    throw new Error(message);
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const contentDisposition = res.headers.get("Content-Disposition") || "";
+  const match = contentDisposition.match(/filename="?([^";]+)"?/i);
+  const defaultName = `sjtmo-report-${Date.now()}.pdf`;
+  link.href = url;
+  link.download = match ? decodeURIComponent(match[1]) : defaultName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  return true;
 };
 
 export const getReportPeriods = () =>

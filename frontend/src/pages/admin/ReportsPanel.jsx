@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { getReport, getReportPeriods } from "../../services/api";
+import {
+  exportReportPdf,
+  getReport,
+  getReportPeriods,
+} from "../../services/api";
 import { downloadReportWorkbook } from "../../utils/reportExport";
 import "../../App.css";
 import "./Reports.css";
@@ -243,16 +247,21 @@ export default function ReportsPanel() {
     fetchReport();
   }, [fetchReport]);
 
-  // Browser print dialog → "Save as PDF". Keeps the report a single source of
-  // truth (no separate server-side PDF template to drift out of sync) and
-  // renders exactly what the admin previewed on screen.
-  const exportPdf = () => {
-    const previousTitle = document.title;
-    if (report) {
-      document.title = `SJTMO ${period === "yearly" ? "Annual" : "Monthly"} Report - ${report.meta.label}`;
+  const exportPdf = async () => {
+    if (!report) return;
+    try {
+      setLoading(true);
+      setErr("");
+      await exportReportPdf({
+        period,
+        year,
+        month: period === "monthly" ? month : undefined,
+      });
+    } catch (e) {
+      setErr(e.message || "Failed to export report PDF.");
+    } finally {
+      setLoading(false);
     }
-    window.print();
-    document.title = previousTitle;
   };
 
   const totals = useMemo(() => {
