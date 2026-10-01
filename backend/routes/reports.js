@@ -77,6 +77,15 @@ const PERIOD_TICKETS_CTE = `
 
 const num = (v) => Number(v) || 0;
 
+const REPORT_EXPORT_SECTIONS = [
+  "executive_summary",
+  "ticket_status_breakdown",
+  "financial_summary",
+  "violations_by_type",
+  "enforcer_performance",
+  "ticket_records",
+];
+
 function normalizeReportFilters(raw = {}) {
   const now = new Date();
   const period = raw.period === "yearly" ? "yearly" : "monthly";
@@ -89,6 +98,33 @@ function normalizeReportFilters(raw = {}) {
     month = now.getMonth() + 1;
   }
   return { period, year, month };
+}
+
+function normalizeExportSections(rawSections = REPORT_EXPORT_SECTIONS) {
+  if (rawSections === undefined) return [...REPORT_EXPORT_SECTIONS];
+
+  const input = Array.isArray(rawSections)
+    ? rawSections
+    : typeof rawSections === "string"
+      ? rawSections.split(",")
+      : [];
+
+  const values = [
+    ...new Set(input.map((value) => String(value).trim()).filter(Boolean)),
+  ];
+
+  if (values.length === 0) {
+    throw new Error("Select at least one report section to export.");
+  }
+
+  const invalid = values.filter(
+    (value) => !REPORT_EXPORT_SECTIONS.includes(value),
+  );
+  if (invalid.length > 0) {
+    throw new Error(`Unknown export sections: ${invalid.join(", ")}`);
+  }
+
+  return values;
 }
 
 function formatCurrency(value) {
@@ -109,28 +145,56 @@ function formatPercent(value) {
   return `${Number(value) || 0}%`;
 }
 
-function drawTable(doc, headers, rows, startY, columnWidths) {
-  const rowHeight = 18;
-  const fontSize = 8;
+function ensurePageSpace(doc, neededHeight, currentY, topPadding = 45) {
+  const pageBottom = 430;
+  if (currentY + neededHeight > pageBottom) {
+    doc.addPage({ size: "A4", layout: "landscape" });
+    return topPadding;
+  }
+  return currentY;
+}
+
+function drawTable(doc, headers, rows, startY, columnWidths, options = {}) {
+  const rowHeight = options.rowHeight || 15;
+  const fontSize = options.fontSize || 8;
+  const tableTop = startY;
 
   doc.font("Helvetica-Bold").fontSize(fontSize);
   let x = 50;
   headers.forEach((header, index) => {
-    doc.text(header, x, startY, { width: columnWidths[index], align: "left" });
+    doc.text(header, x, tableTop, {
+      width: columnWidths[index],
+      align: "left",
+    });
     x += columnWidths[index];
   });
 
   doc
-    .moveTo(50, startY + 14)
-    .lineTo(545, startY + 14)
+    .moveTo(50, tableTop + 14)
+    .lineTo(545, tableTop + 14)
     .stroke();
 
   doc.font("Helvetica").fontSize(fontSize);
-  let currentY = startY + 18;
+  let currentY = tableTop + 18;
   rows.forEach((row) => {
-    if (currentY > 770) {
+    if (currentY + rowHeight > 430) {
       doc.addPage({ size: "A4", layout: "landscape" });
-      currentY = 50;
+      currentY = 45;
+      doc.font("Helvetica-Bold").fontSize(fontSize);
+      x = 50;
+      headers.forEach((header, index) => {
+        doc.text(header, x, currentY, {
+          width: columnWidths[index],
+          align: "left",
+        });
+        x += columnWidths[index];
+      });
+      doc
+        .moveTo(50, currentY + 14)
+        .lineTo(545, currentY + 14)
+        .stroke();
+      doc.font("Helvetica").fontSize(fontSize);
+      currentY += 18;
     }
 
     let colX = 50;
@@ -154,6 +218,7 @@ async function generateReportPdf(report, filters = {}) {
   const byViolation = report.by_violation_type || [];
   const byEnforcer = report.by_enforcer || [];
   const tickets = report.tickets || [];
+  const selectedSections = normalizeExportSections(filters.sections);
   const title =
     filters.period === "yearly"
       ? `Annual Report ${filters.year}`
@@ -171,7 +236,6 @@ async function generateReportPdf(report, filters = {}) {
     doc.on("end", () => resolve(Buffer.concat(buffers)));
     doc.on("error", reject);
 
-    const coverY = 90;
     const coverLeft = 60;
     const coverWidth = 720;
 
@@ -248,116 +312,186 @@ async function generateReportPdf(report, filters = {}) {
         },
       );
 
-    doc.addPage({ size: "A4", layout: "landscape" });
-    doc
-      .fillColor("#0f172a")
-      .fontSize(20)
-      .text("SJTMO Enforcement Office", 50, 45, {
-        width: 500,
+    let contentY = 45;
+    const renderSectionTable = (title, headers, rows, widths, options = {}) => {
+      const sectionHeight = options.sectionHeight || 120;
+      contentY = ensurePageSpace(doc, sectionHeight, contentY, 45);
+      doc
+        .fillColor("#0f172a")
+        .fontSize(12)
+        .text(title, 50, contentY, { width: 300, align: "left" });
+      contentY += 18;
+      contentY = drawTable(doc, headers, rows, contentY, widths, {
+        rowHeight: options.rowHeight || 15,
+        fontSize: options.fontSize || 8,
+      });
+      contentY += 16;
+    };
+
+    if (selectedSections.includes("executive_summary")) {
+      doc
+        .fillColor("#0f172a")
+        .fontSize(20)
+        .text("SJTMO Enforcement Office", 50, 45, {
+          width: 500,
+          align: "left",
+        });
+      doc.fillColor("#475569").fontSize(10).text("Official Summary", 50, 70, {
+        width: 200,
         align: "left",
       });
-    doc.fillColor("#475569").fontSize(10).text("Official Summary", 50, 70, {
-      width: 200,
-      align: "left",
-    });
-    doc
-      .fillColor("#0f172a")
-      .fontSize(22)
-      .text(title, 50, 90, { width: 500, align: "left" });
-    doc
-      .fillColor("#475569")
-      .fontSize(10)
-      .text(
-        `Generated: ${new Date(report.meta?.generated_at || Date.now()).toLocaleString()}     Prepared by: ${report.meta?.generated_by || "System"}`,
-        50,
-        120,
-        { width: 700, align: "left" },
-      );
-
-    const statY = 150;
-    const statX = [50, 190, 330, 470];
-    const statWidth = [120, 120, 120, 120];
-    const stats = [
-      ["Tickets issued", formatNumber(summary.tickets_issued)],
-      ["Fines assessed", formatCurrency(financials.fines_assessed)],
-      ["Collected", formatCurrency(financials.total_collected)],
-      ["Collection rate", formatPercent(financials.collection_rate)],
-    ];
-
-    stats.forEach(([label, value], index) => {
-      const x = statX[index];
       doc
-        .rect(x, statY, statWidth[index] - 8, 42)
-        .fillOpacity(0.04)
-        .fill("#0f172a");
-      doc
-        .fillOpacity(1)
-        .fontSize(8)
-        .fillColor("#555")
-        .text(label, x + 8, statY + 8, { width: statWidth[index] - 16 });
-      doc
-        .fontSize(16)
         .fillColor("#0f172a")
-        .text(value, x + 8, statY + 22, { width: statWidth[index] - 16 });
-    });
+        .fontSize(22)
+        .text(title, 50, 90, { width: 500, align: "left" });
+      doc
+        .fillColor("#475569")
+        .fontSize(10)
+        .text(
+          `Generated: ${new Date(report.meta?.generated_at || Date.now()).toLocaleString()}     Prepared by: ${report.meta?.generated_by || "System"}`,
+          50,
+          120,
+          { width: 700, align: "left" },
+        );
 
-    doc.y = statY + 60;
-    doc.fontSize(12).fillColor("#0f172a").text("Violation mix");
-    const violationRows = (byViolation || [])
-      .slice(0, 6)
-      .map((row) => [
-        row.violation_type || "N/A",
-        formatNumber(row.count),
-        formatCurrency(row.amount_assessed),
-      ]);
-    drawTable(
-      doc,
-      ["Violation", "Count", "Assessed"],
-      violationRows.length
-        ? violationRows
-        : [["No violations recorded", "-", "-"]],
-      doc.y + 8,
-      [160, 80, 120],
-    );
+      const summaryRows = [
+        [
+          "Tickets issued",
+          formatNumber(summary.tickets_issued),
+          formatNumber(report.comparison?.previous_tickets || 0),
+          `${report.comparison?.tickets_change_pct ?? 0}%`,
+        ],
+        ["Fines assessed", formatCurrency(financials.fines_assessed), "—", "—"],
+        [
+          "Total collected",
+          formatCurrency(financials.total_collected),
+          formatCurrency(report.comparison?.previous_collected || 0),
+          `${report.comparison?.collected_change_pct ?? 0}%`,
+        ],
+        [
+          "Collection rate",
+          formatPercent(financials.collection_rate),
+          "—",
+          "—",
+        ],
+        [
+          "Outstanding balance",
+          formatCurrency(financials.outstanding),
+          "—",
+          "—",
+        ],
+        ["Motorists cited", formatNumber(summary.unique_motorists), "—", "—"],
+      ];
 
-    doc.addPage({ size: "A4", layout: "landscape" });
-    doc.fontSize(12).fillColor("#0f172a").text("Enforcer performance");
-    const enforcerRows = (byEnforcer || [])
-      .slice(0, 6)
-      .map((row) => [
-        row.enforcer_name || "Unassigned",
-        formatNumber(row.tickets_issued),
-        formatCurrency(row.fines_assessed),
-        formatCurrency(row.collected),
-      ]);
-    drawTable(
-      doc,
-      ["Enforcer", "Tickets", "Fines", "Collected"],
-      enforcerRows.length ? enforcerRows : [["No data", "-", "-", "-"]],
-      70,
-      [170, 80, 110, 110],
-    );
+      contentY = ensurePageSpace(doc, 160, contentY, 45);
+      doc
+        .fontSize(12)
+        .fillColor("#0f172a")
+        .text("Executive summary table", 50, 150, {
+          width: 220,
+          align: "left",
+        });
+      contentY = drawTable(
+        doc,
+        ["Metric", "Current", "Previous", "Change"],
+        summaryRows,
+        170,
+        [170, 120, 120, 110],
+      );
+      contentY += 12;
+    }
 
-    doc.addPage({ size: "A4", layout: "landscape" });
-    doc.fontSize(12).fillColor("#0f172a").text("Top tickets");
-    const ticketRows = (tickets || [])
-      .slice(0, 10)
-      .map((row) => [
-        row.ticket_no || "-",
-        row.motorist_name || "-",
-        row.violation_type || "-",
-        row.status || "-",
-        formatCurrency(row.balance_due || 0),
-      ]);
-    drawTable(
-      doc,
-      ["Ticket", "Motorist", "Violation", "Status", "Balance due"],
-      ticketRows.length ? ticketRows : [["No tickets", "-", "-", "-", "-"]],
-      70,
-      [80, 150, 150, 80, 90],
-    );
+    if (selectedSections.includes("ticket_status_breakdown")) {
+      const statusRows = [
+        ["Pending", summary.pending],
+        ["Payment Submitted", summary.payment_submitted],
+        ["Partially Paid", summary.partially_paid],
+        ["Paid", summary.paid],
+        ["Resolved", summary.resolved],
+        ["Overdue", summary.overdue],
+        ["Disputed", summary.disputed],
+        ["Dismissed", summary.dismissed],
+      ];
+      renderSectionTable(
+        "Ticket status breakdown",
+        ["Status", "Tickets"],
+        statusRows.length ? statusRows : [["No data", "0"]],
+        [220, 120],
+        { sectionHeight: 110, rowHeight: 15 },
+      );
+    }
 
-    const approvalY = doc.y + 30;
+    if (selectedSections.includes("financial_summary")) {
+      const financialRows = [
+        ["Fines assessed", formatCurrency(financials.fines_assessed)],
+        ["Collected", formatCurrency(financials.total_collected)],
+        ["Outstanding", formatCurrency(financials.outstanding)],
+        ["Collection rate", formatPercent(financials.collection_rate)],
+      ];
+      renderSectionTable(
+        "Financial summary",
+        ["Metric", "Amount"],
+        financialRows.length ? financialRows : [["No data", "-"]],
+        [220, 140],
+        { sectionHeight: 100, rowHeight: 15 },
+      );
+    }
+
+    if (selectedSections.includes("violations_by_type")) {
+      const violationRows = (byViolation || [])
+        .slice(0, 10)
+        .map((row) => [
+          row.violation_type || "N/A",
+          formatNumber(row.count),
+          formatCurrency(row.amount_assessed),
+        ]);
+      renderSectionTable(
+        "Violations by type",
+        ["Violation", "Count", "Assessed"],
+        violationRows.length ? violationRows : [["No data", "-", "-"]],
+        [170, 90, 150],
+        { sectionHeight: 120, rowHeight: 15 },
+      );
+    }
+
+    if (selectedSections.includes("enforcer_performance")) {
+      const enforcerRows = (byEnforcer || [])
+        .slice(0, 10)
+        .map((row) => [
+          row.enforcer_name || "Unassigned",
+          formatNumber(row.tickets_issued),
+          formatCurrency(row.fines_assessed),
+          formatCurrency(row.collected),
+        ]);
+      renderSectionTable(
+        "Enforcer performance",
+        ["Enforcer", "Tickets", "Fines", "Collected"],
+        enforcerRows.length ? enforcerRows : [["No data", "-", "-", "-"]],
+        [170, 90, 120, 120],
+        { sectionHeight: 120, rowHeight: 15 },
+      );
+    }
+
+    if (selectedSections.includes("ticket_records")) {
+      const ticketRows = (tickets || [])
+        .slice(0, 12)
+        .map((row) => [
+          row.ticket_no || "-",
+          row.motorist_name || "-",
+          row.violation_type || "-",
+          row.status || "-",
+          formatCurrency(row.balance_due || 0),
+        ]);
+      renderSectionTable(
+        "Top tickets",
+        ["Ticket", "Motorist", "Violation", "Status", "Balance due"],
+        ticketRows.length ? ticketRows : [["No tickets", "-", "-", "-", "-"]],
+        [80, 150, 150, 80, 90],
+        { sectionHeight: 135, rowHeight: 14 },
+      );
+    }
+
+    const approvalY = doc.y + 28;
     const approvalX = 50;
     doc
       .fontSize(12)
@@ -807,19 +941,24 @@ async function buildReportData({ period, year, month, userName }) {
 
 async function handleReportExport(req, res) {
   try {
-    const filters = normalizeReportFilters(req.body || req.query || {});
+    const requestBody = req.body || req.query || {};
+    const filters = normalizeReportFilters(requestBody);
     if (!filters) {
       return res
         .status(400)
         .json({ error: "year must be between 2000 and 2100" });
     }
 
+    const sections = normalizeExportSections(
+      requestBody.sections ?? REPORT_EXPORT_SECTIONS,
+    );
+
     const report = await buildReportData({
       ...filters,
       userName: req.user.name,
     });
 
-    const pdfBuffer = await generateReportPdf(report, filters);
+    const pdfBuffer = await generateReportPdf(report, { ...filters, sections });
     const filename = `${filters.period === "yearly" ? "annual" : "monthly"}-report-${filters.year}${
       filters.period === "monthly"
         ? `-${String(filters.month).padStart(2, "0")}`
@@ -831,7 +970,13 @@ async function handleReportExport(req, res) {
     res.send(pdfBuffer);
   } catch (err) {
     console.error("Generate report PDF error:", err);
-    res.status(500).json({ error: "Failed to generate report PDF" });
+    const message = err.message || "Failed to generate report PDF";
+    const status =
+      message.includes("Select at least one") ||
+      message.includes("Unknown export")
+        ? 400
+        : 500;
+    res.status(status).json({ error: message });
   }
 }
 
@@ -880,3 +1025,6 @@ router.get("/periods", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.REPORT_EXPORT_SECTIONS = REPORT_EXPORT_SECTIONS;
+module.exports.normalizeReportFilters = normalizeReportFilters;
+module.exports.normalizeExportSections = normalizeExportSections;

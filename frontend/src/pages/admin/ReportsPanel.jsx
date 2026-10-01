@@ -41,6 +41,17 @@ const STATUS_LABELS = {
   overdue: "Overdue",
 };
 
+const REPORT_EXPORT_SECTIONS = [
+  { key: "executive_summary", label: "Executive Summary" },
+  { key: "ticket_status_breakdown", label: "Ticket Status Breakdown" },
+  { key: "financial_summary", label: "Financial Summary" },
+  { key: "violations_by_type", label: "Violations by Type" },
+  { key: "enforcer_performance", label: "Enforcer Performance" },
+  { key: "ticket_records", label: "Ticket Records" },
+];
+
+const ALL_REPORT_EXPORT_SECTIONS = REPORT_EXPORT_SECTIONS.map((s) => s.key);
+
 const peso = (n) =>
   `₱${Number(n || 0).toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -227,6 +238,21 @@ export default function ReportsPanel() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [selectedSections, setSelectedSections] = useState(
+    ALL_REPORT_EXPORT_SECTIONS,
+  );
+
+  const toggleSection = (key) => {
+    setSelectedSections((current) =>
+      current.includes(key)
+        ? current.filter((item) => item !== key)
+        : [...current, key],
+    );
+  };
+
+  const setAllSections = (selectedAll) => {
+    setSelectedSections(selectedAll ? ALL_REPORT_EXPORT_SECTIONS : []);
+  };
 
   useEffect(() => {
     getReportPeriods()
@@ -249,6 +275,10 @@ export default function ReportsPanel() {
 
   const exportPdf = async () => {
     if (!report) return;
+    if (selectedSections.length === 0) {
+      setErr("Select at least one report section to export.");
+      return;
+    }
     try {
       setLoading(true);
       setErr("");
@@ -256,6 +286,7 @@ export default function ReportsPanel() {
         period,
         year,
         month: period === "monthly" ? month : undefined,
+        sections: selectedSections,
       });
     } catch (e) {
       setErr(e.message || "Failed to export report PDF.");
@@ -324,82 +355,120 @@ export default function ReportsPanel() {
       {/* ── Controls (hidden when printing) ── */}
       <div className="card um-filters">
         <div className="report-toolbar">
-          <div className="report-toolbar-field">
-            <label className="report-toolbar-label" htmlFor="rpt-period">
-              Report Type
-            </label>
-            <select
-              id="rpt-period"
-              className="form-select"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-            >
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
-            </select>
-          </div>
+          <div className="report-toolbar-main">
+            <div className="report-toolbar-filters">
+              <div className="report-toolbar-field">
+                <label className="report-toolbar-label" htmlFor="rpt-period">
+                  Report Type
+                </label>
+                <select
+                  id="rpt-period"
+                  className="form-select"
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+              </div>
 
-          {period === "monthly" && (
-            <div className="report-toolbar-field">
-              <label className="report-toolbar-label" htmlFor="rpt-month">
-                Month
-              </label>
-              <select
-                id="rpt-month"
-                className="form-select"
-                value={month}
-                onChange={(e) => setMonth(Number(e.target.value))}
-              >
-                {MONTHS.map((m, i) => (
-                  <option key={m} value={i + 1}>
-                    {m}
-                  </option>
-                ))}
-              </select>
+              {period === "monthly" && (
+                <div className="report-toolbar-field">
+                  <label className="report-toolbar-label" htmlFor="rpt-month">
+                    Month
+                  </label>
+                  <select
+                    id="rpt-month"
+                    className="form-select"
+                    value={month}
+                    onChange={(e) => setMonth(Number(e.target.value))}
+                  >
+                    {MONTHS.map((m, i) => (
+                      <option key={m} value={i + 1}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="report-toolbar-field">
+                <label className="report-toolbar-label" htmlFor="rpt-year">
+                  Year
+                </label>
+                <select
+                  id="rpt-year"
+                  className="form-select"
+                  value={year}
+                  onChange={(e) => setYear(Number(e.target.value))}
+                >
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
 
-          <div className="report-toolbar-field">
-            <label className="report-toolbar-label" htmlFor="rpt-year">
-              Year
-            </label>
-            <select
-              id="rpt-year"
-              className="form-select"
-              value={year}
-              onChange={(e) => setYear(Number(e.target.value))}
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
+            <div className="report-toolbar-field report-export-field">
+              <label className="report-toolbar-label">Export Sections</label>
+              <div className="report-export-panel">
+                <div className="report-export-buttons">
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-xs"
+                    onClick={() => setAllSections(true)}
+                  >
+                    All
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline btn-xs"
+                    onClick={() => setAllSections(false)}
+                  >
+                    None
+                  </button>
+                </div>
+                <div className="report-export-options">
+                  {REPORT_EXPORT_SECTIONS.map((section) => (
+                    <label key={section.key} className="report-export-option">
+                      <input
+                        type="checkbox"
+                        checked={selectedSections.includes(section.key)}
+                        onChange={() => toggleSection(section.key)}
+                      />
+                      <span>{section.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="report-toolbar-spacer" />
-
-          <button
-            className="btn btn-outline btn-sm"
-            onClick={fetchReport}
-            disabled={loading}
-          >
-            {loading ? "Loading…" : "↻ Refresh"}
-          </button>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={exportPdf}
-            disabled={loading || !report}
-          >
-            ⤓ Export PDF
-          </button>
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={() => downloadReportWorkbook(report)}
-            disabled={loading || !report}
-          >
-            ⤓ Export Excel
-          </button>
+          <div className="report-toolbar-actions">
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={fetchReport}
+              disabled={loading}
+            >
+              {loading ? "Loading…" : "↻ Refresh"}
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={exportPdf}
+              disabled={loading || !report || selectedSections.length === 0}
+            >
+              ⤓ Export PDF
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => downloadReportWorkbook(report)}
+              disabled={loading || !report}
+            >
+              ⤓ Export Excel
+            </button>
+          </div>
         </div>
       </div>
 
