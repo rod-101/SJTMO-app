@@ -1,3 +1,5 @@
+import { getReceiptQrPayload } from "../utils/receiptQr";
+
 const PT_210_SERVICE_UUIDS = [
   "0000ff00-0000-1000-8000-00805f9b34fb",
   "0000fff0-0000-1000-8000-00805f9b34fb",
@@ -14,6 +16,7 @@ const PRINTER_CHARACTERISTIC_UUIDS = [
 ];
 
 const ESC = 0x1b;
+const GS = 0x1d;
 const LF = 0x0a;
 const PRINTER_WRITE_CHUNK_SIZE = 20;
 
@@ -67,6 +70,29 @@ function buildEscPosData(ticketData) {
     pushText(text);
     bytes.push(LF);
     bytes.push(ESC, 0x21, 0x00);
+  };
+
+  const pushQrCode = (value) => {
+    const encoded = encoder.encode(value);
+    const dataLength = encoded.length + 3;
+
+    bytes.push(ESC, 0x61, 0x01);
+    bytes.push(GS, 0x28, 0x6b, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00);
+    bytes.push(GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x43, 0x06);
+    bytes.push(GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31);
+    bytes.push(
+      GS,
+      0x28,
+      0x6b,
+      dataLength & 0xff,
+      (dataLength >> 8) & 0xff,
+      0x31,
+      0x50,
+      0x30,
+      ...encoded,
+    );
+    bytes.push(GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30);
+    bytes.push(ESC, 0x61, 0x00);
   };
 
   const pushSeparator = () => pushLine("================================");
@@ -136,6 +162,13 @@ function buildEscPosData(ticketData) {
   pushSeparator();
   pushLine(`Enforcer: ${detailValue(ticketData?.enforcer_name, "—")}`);
   pushLine("Present this ticket when settling the violation.");
+  const qrPayload = getReceiptQrPayload(ticketData?.access_token);
+  if (qrPayload) {
+    pushLine("");
+    pushCentered("Scan to view ticket");
+    pushQrCode(qrPayload);
+    pushLine("");
+  }
   pushLine("");
   bytes.push(ESC, 0x64, 0x02);
   bytes.push(LF, LF);

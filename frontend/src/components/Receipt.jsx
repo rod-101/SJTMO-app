@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { printTicketToPt210 } from "../services/bluetoothPrinter";
+import { getReceiptQrPayload } from "../utils/receiptQr";
 import "./Receipt.css";
 
 const peso = (n) =>
@@ -24,7 +25,7 @@ export default function Receipt({ data, onBack, onPrintTicket }) {
 
   if (!data) return null;
 
-  const qrPayload = `${window.location.origin}/receipt/${data.access_token}`;
+  const qrPayload = getReceiptQrPayload(data.access_token);
 
   const handleDirectPrint = async () => {
     if (onPrintTicket) {
@@ -101,7 +102,7 @@ export default function Receipt({ data, onBack, onPrintTicket }) {
               </div>
               <div className="receipt-subtitle">Official Violation Receipt</div>
             </div>
-            <QRCodeSVG value={qrPayload} size={88} />
+            {qrPayload && <QRCodeSVG value={qrPayload} size={88} />}
           </div>
 
           <div className="receipt-ticket-no">
