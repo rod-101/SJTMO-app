@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
+import { printTicketToPt210 } from "../services/bluetoothPrinter";
 import "./Receipt.css";
 
 const peso = (n) =>
@@ -15,10 +16,54 @@ const formatDateTime = (iso) => {
   });
 };
 
-export default function Receipt({ data, onBack }) {
+export default function Receipt({ data, onBack, onPrintTicket }) {
+  const [printerStatus, setPrinterStatus] = useState({
+    type: "idle",
+    message: "",
+  });
+
   if (!data) return null;
 
   const qrPayload = `${window.location.origin}/receipt/${data.access_token}`;
+
+  const handleDirectPrint = async () => {
+    if (onPrintTicket) {
+      try {
+        setPrinterStatus({
+          type: "printing",
+          message: "Connecting to the PT-210…",
+        });
+        await onPrintTicket();
+        setPrinterStatus({
+          type: "success",
+          message: "Ticket sent to the PT-210.",
+        });
+      } catch (error) {
+        setPrinterStatus({
+          type: "error",
+          message: error?.message || "Unable to print directly to the PT-210.",
+        });
+      }
+      return;
+    }
+
+    try {
+      setPrinterStatus({
+        type: "printing",
+        message: "Connecting to the PT-210…",
+      });
+      const printer = await printTicketToPt210(data);
+      setPrinterStatus({
+        type: "success",
+        message: `Ticket sent to ${printer.name}.`,
+      });
+    } catch (error) {
+      setPrinterStatus({
+        type: "error",
+        message: error?.message || "Unable to print directly to the PT-210.",
+      });
+    }
+  };
 
   return (
     <div className="receipt-page">
@@ -31,7 +76,20 @@ export default function Receipt({ data, onBack }) {
         <button className="btn btn-primary" onClick={() => window.print()}>
           🖨️ Print Receipt
         </button>
+        <button className="btn btn-outline" onClick={handleDirectPrint}>
+          🖨️ PT-210
+        </button>
       </div>
+
+      {printerStatus.message && (
+        <div
+          className={`alert ${
+            printerStatus.type === "error" ? "alert-error" : "alert-success"
+          } receipt-alert`}
+        >
+          {printerStatus.message}
+        </div>
+      )}
 
       <div className="receipt-print-area">
         <div className="receipt-card">

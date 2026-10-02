@@ -13,6 +13,7 @@ import {
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import Receipt from "../../components/Receipt";
+import { printTicketToPt210 } from "../../services/bluetoothPrinter";
 import "../../App.css";
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -1121,6 +1122,10 @@ export default function IssueViolation({ onSuccess }) {
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(null); // { ticket_no, motorist_name }
   const [showReceipt, setShowReceipt] = useState(false);
+  const [printerStatus, setPrinterStatus] = useState({
+    type: "idle",
+    message: "",
+  });
   const [error, setError] = useState("");
 
   // ── Initial load ───────────────────────────────────────────────────────
@@ -1497,14 +1502,42 @@ export default function IssueViolation({ onSuccess }) {
     setPhotoTag(false);
     setPhotoError("");
     setPhotoWarning("");
+    setPrinterStatus({ type: "idle", message: "" });
     setSuccess(null);
     setShowReceipt(false);
     setError("");
   };
 
+  const handlePrintTicket = async () => {
+    if (!success) return;
+
+    setPrinterStatus({
+      type: "printing",
+      message: "Connecting to the PT-210…",
+    });
+    try {
+      const printer = await printTicketToPt210(success);
+      setPrinterStatus({
+        type: "success",
+        message: `Ticket sent to ${printer.name}.`,
+      });
+    } catch (err) {
+      const message =
+        err?.message || "Unable to print directly to the PT-210 right now.";
+      setPrinterStatus({ type: "error", message });
+      setError(message);
+    }
+  };
+
   // ── Success view ───────────────────────────────────────────────────────
   if (success && showReceipt) {
-    return <Receipt data={success} onBack={() => setShowReceipt(false)} />;
+    return (
+      <Receipt
+        data={success}
+        onBack={() => setShowReceipt(false)}
+        onPrintTicket={handlePrintTicket}
+      />
+    );
   }
 
   if (success) {
@@ -1518,6 +1551,16 @@ export default function IssueViolation({ onSuccess }) {
         </div>
         {photoWarning && (
           <div className="alert alert-error iv-alert">⚠ {photoWarning}</div>
+        )}
+        {printerStatus.message && (
+          <div
+            className={`alert ${
+              printerStatus.type === "error" ? "alert-error" : "alert-success"
+            } iv-alert`}
+          >
+            {printerStatus.type === "printing" ? "🖨️ " : "✅ "}
+            {printerStatus.message}
+          </div>
         )}
         {success.total > 0 && (
           <div className="iv-success-total">
@@ -1533,6 +1576,12 @@ export default function IssueViolation({ onSuccess }) {
             onClick={() => setShowReceipt(true)}
           >
             🧾 View Receipt
+          </button>
+          <button
+            className="btn btn-primary btn-full"
+            onClick={handlePrintTicket}
+          >
+            🖨️ Print PT-210
           </button>
           <button
             className="btn btn-primary btn-full"
