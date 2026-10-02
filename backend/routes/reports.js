@@ -491,17 +491,15 @@ async function generateReportPdf(report, filters = {}) {
     }
 
     if (selectedSections.includes("ticket_records")) {
-      const ticketRows = (tickets || [])
-        .slice(0, 12)
-        .map((row) => [
-          row.ticket_no || "-",
-          row.motorist_name || "-",
-          row.violation_type || "-",
-          row.status || "-",
-          formatCurrency(row.balance_due || 0),
-        ]);
+      const ticketRows = (tickets || []).map((row) => [
+        row.ticket_no || "-",
+        row.motorist_name || "-",
+        row.violation_type || "-",
+        row.status || "-",
+        formatCurrency(row.balance_due || 0),
+      ]);
       renderSectionTable(
-        "Top tickets",
+        "Ticket records",
         ["Ticket", "Motorist", "Violation", "Status", "Balance due"],
         ticketRows.length ? ticketRows : [["No tickets", "-", "-", "-", "-"]],
         [80, 150, 150, 80, 90],
