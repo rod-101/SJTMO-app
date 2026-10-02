@@ -145,43 +145,30 @@ function normalizeDeviceName(name) {
   return String(name || "").trim();
 }
 
-async function findWriteCharacteristic(service) {
-  const serviceUuid = service.uuid.toLowerCase();
+async function findWriteCharacteristic(server) {
+  const services = await server.getPrimaryServices();
 
-  for (const uuid of PRINTER_CHARACTERISTIC_UUIDS) {
+  for (const service of services) {
+    let characteristics = [];
     try {
-      const characteristic = await service.getCharacteristic(uuid);
-      if (characteristic) {
-        const props = characteristic.properties || {};
-        if (props.write || props.writeWithoutResponse) {
-          return characteristic;
-        }
-      }
+      characteristics = await service.getCharacteristics();
     } catch {
-      // continue to other candidates
+      continue;
     }
-  }
 
-  for (const uuid of PT_210_SERVICE_UUIDS) {
-    try {
-      const characteristic = await service.getCharacteristic(uuid);
-      if (characteristic) {
-        const props = characteristic.properties || {};
-        if (props.write || props.writeWithoutResponse) {
-          return characteristic;
-        }
-      }
-    } catch {
-      // continue to other candidates
+    const preferred = characteristics.find((characteristic) =>
+      PRINTER_CHARACTERISTIC_UUIDS.includes(characteristic.uuid.toLowerCase()),
+    );
+    if (preferred) {
+      const props = preferred.properties || {};
+      if (props.write || props.writeWithoutResponse) return preferred;
     }
-  }
 
-  const characteristics = await service.getCharacteristics();
-  for (const characteristic of characteristics) {
-    const props = characteristic.properties || {};
-    if (props.write || props.writeWithoutResponse) {
-      return characteristic;
-    }
+    const writable = characteristics.find((characteristic) => {
+      const props = characteristic.properties || {};
+      return props.write || props.writeWithoutResponse;
+    });
+    if (writable) return writable;
   }
 
   return null;
