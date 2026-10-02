@@ -516,8 +516,8 @@ async function generateReportPdf(report, filters = {}) {
         width: 250,
       });
 
-    const signatureWidth = 170;
-    const signatureGap = 170;
+    const signatureWidth = 200;
+    const signatureGap = 220;
     const baseY = approvalY + 30;
     const signatureData = [
       { label: "Prepared by", value: report.meta?.generated_by || "System" },
