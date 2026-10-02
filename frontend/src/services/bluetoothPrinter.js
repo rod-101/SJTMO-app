@@ -15,6 +15,7 @@ const PRINTER_CHARACTERISTIC_UUIDS = [
 
 const ESC = 0x1b;
 const LF = 0x0a;
+const PRINTER_WRITE_CHUNK_SIZE = 20;
 
 function getTextEncoder() {
   return new TextEncoder();
@@ -232,26 +233,42 @@ export async function connectToPt210Printer() {
   }
 
   const server = await device.gatt.connect();
-  const characteristic = await findWriteCharacteristic(server);
+  try {
+    const characteristic = await findWriteCharacteristic(server);
 
-  if (!characteristic) {
+    if (!characteristic) {
+      throw new Error(
+        "Unable to find a writable Bluetooth characteristic on the PT-210.",
+      );
+    }
+
+    return {
+      device,
+      characteristic,
+      name: normalizeDeviceName(device.name) || "PT-210",
+      disconnect: () => device.gatt.disconnect(),
+    };
+  } catch (error) {
     device.gatt.disconnect();
-    throw new Error(
-      "Unable to find a writable Bluetooth characteristic on the PT-210.",
-    );
+    throw error;
   }
-
-  return {
-    device,
-    characteristic,
-    name: normalizeDeviceName(device.name) || "PT-210",
-    disconnect: () => device.gatt.disconnect(),
-  };
 }
 
 export async function printTicketToPt210(ticketData) {
   const printer = await connectToPt210Printer();
-  const payload = buildEscPosData(ticketData);
-  await printer.characteristic.writeValue(payload);
-  return printer;
+  try {
+    const payload = buildEscPosData(ticketData);
+    for (
+      let offset = 0;
+      offset < payload.length;
+      offset += PRINTER_WRITE_CHUNK_SIZE
+    ) {
+      await printer.characteristic.writeValue(
+        payload.subarray(offset, offset + PRINTER_WRITE_CHUNK_SIZE),
+      );
+    }
+    return printer;
+  } finally {
+    printer.disconnect();
+  }
 }
