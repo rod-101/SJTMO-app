@@ -21,11 +21,12 @@ const pool = process.env.DATABASE_URL
       password: process.env.DB_PASSWORD,
     });
 
-pool.connect((err) => {
+pool.connect((err, client) => {
   if (err) {
     console.error("Database connection error:", err.message);
   } else {
     console.log("Connected to PostgreSQL database");
+    client.release();
   }
 });
 
