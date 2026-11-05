@@ -8,6 +8,8 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import VerifyEmail from "./pages/auth/VerifyEmail";
 import AcceptInvite from "./pages/auth/AcceptInvite";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import EnforcerDashboard from "./pages/enforcer/EnforcerDashboard";
 import MotoristDashboard from "./pages/motorist/MotoristDashboard";
@@ -60,6 +62,8 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="/accept-invite" element={<AcceptInvite />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/" element={<HomeRoute />} />
           <Route path="/receipt/:token" element={<PublicReceipt />} />
           <Route
