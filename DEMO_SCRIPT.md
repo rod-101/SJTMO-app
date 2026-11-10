@@ -86,7 +86,20 @@ You are now on the Enforcer Panel:
 
 ---
 
-### SCENE 7: Wrap Up (1 min)
+### SCENE 7: System Settings (1 min)
+
+1. As Admin → **⚙️ System Settings** tab
+2. Set **Overdue threshold** to `1` → **💾 Save Changes**
+3. Click **▶️ Run overdue check now** → confirm → "Marked N ticket(s) as overdue"
+4. **📋 Violations** tab → older pending tickets now show the **Overdue** badge
+5. Back in Settings, change the **Footer note** → Save → open any receipt to see the new text
+6. **📜 System Logs** → `settings.update`, `settings.overdue_check_run`, and `ticket.overdue` entries, all attributed to the admin
+
+> "Admins can tune the overdue rule and the printed ticket text without a code change, and every change is audited."
+
+---
+
+### SCENE 8: Wrap Up (1 min)
 
 > "The system demonstrates:
 >

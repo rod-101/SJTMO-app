@@ -1,4 +1,5 @@
 import { getReceiptQrPayload } from "../utils/receiptQr";
+import { DEFAULT_TICKET_TEXT, loadTicketText } from "../utils/ticketText";
 
 const PT_210_SERVICE_UUIDS = [
   "0000ff00-0000-1000-8000-00805f9b34fb",
@@ -44,7 +45,8 @@ function buildColumnLine(left, right, width = 32) {
   return `${leftText}${" ".repeat(gap)}${rightText}`;
 }
 
-function buildEscPosData(ticketData) {
+function buildEscPosData(ticketData, ticketText = DEFAULT_TICKET_TEXT) {
+  const text = { ...DEFAULT_TICKET_TEXT, ...ticketText };
   const encoder = getTextEncoder();
   const bytes = [];
 
@@ -108,8 +110,8 @@ function buildEscPosData(ticketData) {
   bytes.push(ESC, 0x44, 0x00);
 
   pushCentered("SJTMO");
-  pushCentered("San Jose Traffic Management Office");
-  pushCentered("Official Violation Ticket");
+  pushCentered(text.ticket_office_name);
+  pushCentered(text.ticket_title);
   pushSeparator();
   pushBold(`Ticket #${detailValue(ticketData?.ticket_no, "—")}`);
   pushLine(`Issued: ${detailValue(ticketData?.date_issued, "—")}`);
@@ -161,7 +163,7 @@ function buildEscPosData(ticketData) {
   }
   pushSeparator();
   pushLine(`Enforcer: ${detailValue(ticketData?.enforcer_name, "—")}`);
-  pushLine("Present this ticket when settling the violation.");
+  if (text.ticket_footer) pushLine(text.ticket_footer);
   const qrPayload = getReceiptQrPayload(ticketData?.access_token);
   if (qrPayload) {
     pushLine("");
@@ -288,9 +290,12 @@ export async function connectToPt210Printer() {
 }
 
 export async function printTicketToPt210(ticketData) {
+  // Connect first: the Bluetooth device picker must open while the user's
+  // click still counts as a user gesture. Ticket text loads after (cached).
   const printer = await connectToPt210Printer();
   try {
-    const payload = buildEscPosData(ticketData);
+    const ticketText = await loadTicketText();
+    const payload = buildEscPosData(ticketData, ticketText);
     for (
       let offset = 0;
       offset < payload.length;

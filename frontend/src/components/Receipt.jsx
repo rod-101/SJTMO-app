@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { printTicketToPt210 } from "../services/bluetoothPrinter";
 import { getReceiptQrPayload } from "../utils/receiptQr";
+import { useTicketText } from "../utils/ticketText";
 import "./Receipt.css";
 
 const peso = (n) =>
@@ -22,6 +23,7 @@ export default function Receipt({ data, onBack, onPrintTicket }) {
     type: "idle",
     message: "",
   });
+  const ticketText = useTicketText();
 
   if (!data) return null;
 
@@ -98,7 +100,7 @@ export default function Receipt({ data, onBack, onPrintTicket }) {
             <div>
               <div className="receipt-org">SJTMO</div>
               <div className="receipt-subtitle">
-                San Jose Traffic Management Office
+                {ticketText.ticket_office_name}
               </div>
               <div className="receipt-subtitle">Official Violation Receipt</div>
             </div>
@@ -202,9 +204,11 @@ export default function Receipt({ data, onBack, onPrintTicket }) {
 
           <div className="receipt-footer">
             <div>Issued by: {data.enforcer_name || "—"}</div>
-            <div className="receipt-footer-note">
-              Present this receipt when settling your violation.
-            </div>
+            {ticketText.ticket_footer && (
+              <div className="receipt-footer-note">
+                {ticketText.ticket_footer}
+              </div>
+            )}
           </div>
         </div>
       </div>

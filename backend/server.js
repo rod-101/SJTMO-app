@@ -44,6 +44,7 @@ const vehicleRoutes = require("./routes/vehicles");
 const logRoutes = require("./routes/logs");
 const reportRoutes = require("./routes/reports");
 const enforcerRoutes = require("./routes/enforcers");
+const settingsRoutes = require("./routes/settings");
 
 app.use("/login", authRoutes);
 app.use("/tickets", ticketRoutes);
@@ -55,6 +56,7 @@ app.use("/vehicles", vehicleRoutes);
 app.use("/logs", logRoutes);
 app.use("/reports", reportRoutes);
 app.use("/enforcers", enforcerRoutes);
+app.use("/settings", settingsRoutes);
 
 // Health check — useful for Render uptime monitoring
 app.get("/health", (req, res) => {
@@ -66,6 +68,7 @@ app.get("/health", (req, res) => {
 // migration run. Safe to re-run — all statements use IF NOT EXISTS / DO blocks.
 const pool = require("./db");
 const { startOverdueJob } = require("./services/overdueJob");
+const { seedSettingsSql } = require("./services/settings");
 
 async function runStartupMigrations() {
   const migrations = [
@@ -216,6 +219,13 @@ async function runStartupMigrations() {
     `INSERT INTO enforcer_profiles (user_id)
      SELECT id FROM users WHERE role = 'enforcer'
      ON CONFLICT (user_id) DO NOTHING`,
+    `CREATE TABLE IF NOT EXISTS system_settings (
+       key        VARCHAR(64) PRIMARY KEY,
+       value      JSONB       NOT NULL,
+       updated_by UUID        REFERENCES users(id) ON DELETE SET NULL,
+       updated_at TIMESTAMPTZ DEFAULT NOW()
+     )`,
+    seedSettingsSql(),
   ];
 
   for (const sql of migrations) {

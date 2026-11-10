@@ -148,4 +148,6 @@ module.exports = {
   revokeRefreshToken,
   REFRESH_COOKIE_NAME,
   refreshCookieOptions,
+  ACCESS_TTL,
+  REFRESH_TTL_DAYS,
 };

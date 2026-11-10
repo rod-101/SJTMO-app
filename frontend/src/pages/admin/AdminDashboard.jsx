@@ -8,6 +8,7 @@ import OrdinancesPanel from "./OrdinancesPanel";
 import DashboardOverview from "./DashboardOverview";
 import ReportsPanel from "./ReportsPanel";
 import EnforcerTracking from "./EnforcerTracking";
+import SettingsPanel from "./SettingsPanel";
 import { useAuth } from "../../context/AuthContext";
 import { getViolations } from "../../services/api";
 import "../../App.css";
@@ -49,20 +50,6 @@ const ROLE_LABELS = {
   enforcer: "Enforcer",
   motorist: "Motorist",
 };
-
-function ComingSoon({ title, icon }) {
-  return (
-    <div className="card">
-      <div className="empty-state">
-        <div className="empty-state-icon">{icon}</div>
-        <div className="empty-state-text" style={{ fontSize: "1rem", fontWeight: 600, marginBottom: 4 }}>
-          {title}
-        </div>
-        <div className="empty-state-text">Coming soon</div>
-      </div>
-    </div>
-  );
-}
 
 export default function AdminDashboard() {
   const { user, logoutUser } = useAuth();
@@ -210,9 +197,7 @@ export default function AdminDashboard() {
 
           {tab === "logs" && <SystemLogs />}
 
-          {tab === "settings" && (
-            <ComingSoon title="System Settings" icon="⚙️" />
-          )}
+          {tab === "settings" && <SettingsPanel />}
         </main>
       </div>
     </div>

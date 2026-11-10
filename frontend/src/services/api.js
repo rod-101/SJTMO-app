@@ -621,3 +621,27 @@ export const updateMyPatrolAssignment = (id, status) =>
     headers: authHeaders(),
     body: JSON.stringify({ status }),
   });
+
+// ── System settings ───────────────────────────────────────────────────────────
+// Public: ticket header/footer text. No token needed (used on public receipts).
+export const getPublicSettings = () =>
+  fetch(`${BASE_URL}/settings/public`).then(handleResponse);
+
+export const getSettings = () =>
+  authedFetch(`${BASE_URL}/settings`, { headers: authHeadersOnly() });
+
+export const updateSettings = (changes) =>
+  authedFetch(`${BASE_URL}/settings`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(changes),
+  });
+
+export const getSystemStatus = () =>
+  authedFetch(`${BASE_URL}/settings/status`, { headers: authHeadersOnly() });
+
+export const runOverdueCheck = () =>
+  authedFetch(`${BASE_URL}/settings/run-overdue-check`, {
+    method: "POST",
+    headers: authHeadersOnly(),
+  });

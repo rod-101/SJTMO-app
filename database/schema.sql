@@ -363,6 +363,21 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE INDEX IF NOT EXISTS idx_audit_user   ON audit_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_logs(target_table, target_id);
 
+-- ── System settings (admin-editable, see backend/services/settings.js) ──
+CREATE TABLE IF NOT EXISTS system_settings (
+    key        VARCHAR(64) PRIMARY KEY,
+    value      JSONB       NOT NULL,
+    updated_by UUID        REFERENCES users(id) ON DELETE SET NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO system_settings (key, value) VALUES
+  ('overdue_days',       '14'),
+  ('ticket_office_name', '"San Jose Traffic Management Office"'),
+  ('ticket_title',       '"Official Violation Ticket"'),
+  ('ticket_footer',      '"Present this ticket when settling the violation."')
+ON CONFLICT (key) DO NOTHING;
+
 -- ── Auto-update updated_at trigger ───────────────────────────
 CREATE OR REPLACE FUNCTION set_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
