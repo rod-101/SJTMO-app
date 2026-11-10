@@ -10,6 +10,7 @@ import {
   updatePatrolAssignment,
   deletePatrolAssignment,
 } from "../../services/api";
+import EnforcerProfileModal from "../../components/EnforcerProfileModal";
 import "./EnforcerTracking.css";
 
 // Local (Philippine) date as YYYY-MM-DD. toISOString() would return the UTC day,
@@ -83,6 +84,7 @@ function ActivityView() {
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState(null);
   const [activity, setActivity] = useState({});
+  const [profileId, setProfileId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -202,7 +204,14 @@ function ActivityView() {
                 <React.Fragment key={e.id}>
                   <tr>
                     <td>
-                      <div className="et-name">{e.name}</div>
+                      <button
+                        type="button"
+                        className="et-name enf-name-link"
+                        onClick={() => setProfileId(e.id)}
+                        title="View profile"
+                      >
+                        {e.name}
+                      </button>
                       <div className="et-sub">{e.email}</div>
                     </td>
                     <td>
@@ -278,6 +287,14 @@ function ActivityView() {
           </table>
         </div>
       </div>
+
+      {profileId && (
+        <EnforcerProfileModal
+          enforcerId={profileId}
+          editable
+          onClose={() => setProfileId(null)}
+        />
+      )}
     </>
   );
 }

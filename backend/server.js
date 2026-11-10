@@ -232,6 +232,19 @@ async function runStartupMigrations() {
             ('National Highway', 'Main highway stretch'),
             ('Terminal Area', 'Jeepney and tricycle terminal')
      ON CONFLICT (name) DO NOTHING`,
+    // Enforcer profiles: persistent, staff-visible profile data (1:1 with users).
+    // The photo is stored in the DB so it survives redeploys on ephemeral disks.
+    `CREATE TABLE IF NOT EXISTS enforcer_profiles (
+       user_id          UUID        PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+       phone            VARCHAR(30),
+       photo            BYTEA,
+       photo_mime       VARCHAR(30),
+       photo_updated_at TIMESTAMPTZ,
+       updated_at       TIMESTAMPTZ DEFAULT NOW()
+     )`,
+    `INSERT INTO enforcer_profiles (user_id)
+     SELECT id FROM users WHERE role = 'enforcer'
+     ON CONFLICT (user_id) DO NOTHING`,
   ];
 
   for (const sql of migrations) {

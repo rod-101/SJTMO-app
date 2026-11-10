@@ -335,11 +335,9 @@ router.patch(
     const changed_by_name = req.user.name;
 
     if (!VALID_STATUSES.includes(status)) {
-      return res
-        .status(400)
-        .json({
-          error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`,
-        });
+      return res.status(400).json({
+        error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`,
+      });
     }
 
     try {
@@ -366,12 +364,10 @@ router.patch(
           Math.round(Number(row.amount_paid) * 100) <
             Math.round(Number(row.fine_total) * 100)
         ) {
-          return res
-            .status(400)
-            .json({
-              error:
-                "A ticket can be marked paid only after the full payment is verified.",
-            });
+          return res.status(400).json({
+            error:
+              "A ticket can be marked paid only after the full payment is verified.",
+          });
         }
       }
 
@@ -409,11 +405,9 @@ router.put("/:id", requireAuth, authorize("admin"), async (req, res) => {
     req.body;
 
   if (status && !VALID_STATUSES.includes(status)) {
-    return res
-      .status(400)
-      .json({
-        error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`,
-      });
+    return res.status(400).json({
+      error: `Invalid status. Must be one of: ${VALID_STATUSES.join(", ")}`,
+    });
   }
 
   try {

@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import { resetUserPassword } from "../../services/api";
+import { changePassword } from "../../services/api";
 
 export default function MotoristProfile({ violations }) {
   const { user } = useAuth();
   const [showPwForm, setShowPwForm] = useState(false);
-  const [pw, setPw] = useState({ next: "", confirm: "" });
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
   const [pwMsg, setPwMsg] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -30,9 +30,9 @@ export default function MotoristProfile({ violations }) {
     setSaving(true);
     setPwMsg(null);
     try {
-      await resetUserPassword(user.id, pw.next);
+      await changePassword(pw.current, pw.next);
       setPwMsg({ type: "success", text: "Password updated successfully." });
-      setPw({ next: "", confirm: "" });
+      setPw({ current: "", next: "", confirm: "" });
       setShowPwForm(false);
     } catch (err) {
       setPwMsg({ type: "error", text: err.message || "Failed to update password." });
@@ -122,6 +122,15 @@ export default function MotoristProfile({ violations }) {
 
             {showPwForm && (
               <form className="enf-pw-form" onSubmit={handleChangePassword}>
+                <input
+                  className="enf-input"
+                  type="password"
+                  placeholder="Current password"
+                  autoComplete="current-password"
+                  value={pw.current}
+                  onChange={(e) => setPw((p) => ({ ...p, current: e.target.value }))}
+                  required
+                />
                 <input
                   className="enf-input"
                   type="password"

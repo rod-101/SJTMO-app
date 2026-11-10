@@ -113,11 +113,9 @@ router.post("/", requireAuth, authorize("admin"), async (req, res) => {
     if (!amountMatchesBalance(amount_paid, fineTotal, verifiedPaid)) {
       await client.query("ROLLBACK");
       const balanceDue = Math.max(fineTotal - verifiedPaid, 0);
-      return res
-        .status(400)
-        .json({
-          error: `Full payment of ${balanceDue.toFixed(2)} is required.`,
-        });
+      return res.status(400).json({
+        error: `Full payment of ${balanceDue.toFixed(2)} is required.`,
+      });
     }
 
     const payment = await client.query(
@@ -181,11 +179,9 @@ router.post(
       const { ticket_id, receipt_no, amount_paid, payment_method, paid_at } =
         req.body;
       if (!ticket_id || !receipt_no || !amount_paid) {
-        return res
-          .status(400)
-          .json({
-            error: "ticket_id, receipt_no, and amount_paid are required",
-          });
+        return res.status(400).json({
+          error: "ticket_id, receipt_no, and amount_paid are required",
+        });
       }
 
       const client = await pool.connect();
@@ -208,12 +204,10 @@ router.post(
         const acceptingStatuses = ["pending", "overdue"];
         if (!acceptingStatuses.includes(ticket.rows[0].status)) {
           await client.query("ROLLBACK");
-          return res
-            .status(400)
-            .json({
-              error:
-                "This ticket does not accept a receipt submission right now.",
-            });
+          return res.status(400).json({
+            error:
+              "This ticket does not accept a receipt submission right now.",
+          });
         }
 
         const { fineTotal, amountPaid: verifiedPaid } = await getFineAndPaid(
@@ -223,11 +217,9 @@ router.post(
         if (!amountMatchesBalance(amount_paid, fineTotal, verifiedPaid)) {
           await client.query("ROLLBACK");
           const balanceDue = Math.max(fineTotal - verifiedPaid, 0);
-          return res
-            .status(400)
-            .json({
-              error: `Full payment of ${balanceDue.toFixed(2)} is required.`,
-            });
+          return res.status(400).json({
+            error: `Full payment of ${balanceDue.toFixed(2)} is required.`,
+          });
         }
 
         const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
@@ -318,11 +310,9 @@ router.post(
       );
       if (payment.rows.length === 0) {
         await client.query("ROLLBACK");
-        return res
-          .status(404)
-          .json({
-            error: "No pending motorist submission found for this payment",
-          });
+        return res.status(404).json({
+          error: "No pending motorist submission found for this payment",
+        });
       }
 
       await client.query(
@@ -387,11 +377,9 @@ router.post(
       );
       if (payment.rows.length === 0) {
         await client.query("ROLLBACK");
-        return res
-          .status(404)
-          .json({
-            error: "No pending motorist submission found for this payment",
-          });
+        return res.status(404).json({
+          error: "No pending motorist submission found for this payment",
+        });
       }
 
       await client.query("DELETE FROM payments WHERE id = $1", [req.params.id]);

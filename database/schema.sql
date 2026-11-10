@@ -324,6 +324,22 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_patrol_assign_unique
 CREATE INDEX IF NOT EXISTS idx_patrol_assign_date     ON patrol_assignments(shift_date);
 CREATE INDEX IF NOT EXISTS idx_patrol_assign_enforcer ON patrol_assignments(enforcer_id);
 
+-- ── Enforcer profiles ────────────────────────────────────────
+-- Persistent, staff-visible profile data (1:1 with users). The photo is stored
+-- in the DB (small, client-resized JPEG) so it survives redeploys.
+CREATE TABLE IF NOT EXISTS enforcer_profiles (
+    user_id          UUID        PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    phone            VARCHAR(30),
+    photo            BYTEA,
+    photo_mime       VARCHAR(30),
+    photo_updated_at TIMESTAMPTZ,
+    updated_at       TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO enforcer_profiles (user_id)
+SELECT id FROM users WHERE role = 'enforcer'
+ON CONFLICT (user_id) DO NOTHING;
+
 INSERT INTO patrol_areas (name, description)
 VALUES ('Poblacion', 'Town center and public market'),
        ('National Highway', 'Main highway stretch'),

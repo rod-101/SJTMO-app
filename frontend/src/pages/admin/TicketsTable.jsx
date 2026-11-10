@@ -15,6 +15,7 @@ import {
   rejectPayment,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import EnforcerProfileModal from "../../components/EnforcerProfileModal";
 import "../../App.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -821,7 +822,7 @@ function TypeManagerModal({
 }
 
 // ─── Violation Details Panel ──────────────────────────────────────────────────
-function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
+function ViolationDetailsPanel({ violation: v, onClose, onAction, onViewEnforcer }) {
   const overdue = isOverdue(v);
   const hasLocation = v.latitude && v.longitude;
   const hasPayment = v.receipt_no || v.amount_paid;
@@ -907,7 +908,22 @@ function ViolationDetailsPanel({ violation: v, onClose, onAction }) {
 
           <div className="user-panel-section-title">Issued By</div>
           <div className="user-panel-grid">
-            <Field label="Enforcer" value={v.enforcer_name} />
+            <Field
+              label="Enforcer"
+              value={
+                v.enforcer_id && onViewEnforcer ? (
+                  <button
+                    type="button"
+                    className="enf-name-link"
+                    onClick={() => onViewEnforcer(v.enforcer_id)}
+                  >
+                    {v.enforcer_name}
+                  </button>
+                ) : (
+                  v.enforcer_name
+                )
+              }
+            />
             <Field
               label="Enforcer ID"
               value={
@@ -1231,6 +1247,7 @@ export default function TicketsTable({ violations, onRefresh }) {
   const [paymentViolation, setPaymentViolation] = useState(null);
   const [showManageTypes, setShowManageTypes] = useState(false);
   const [detailsId, setDetailsId] = useState(null);
+  const [profileEnforcerId, setProfileEnforcerId] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
@@ -1839,7 +1856,20 @@ export default function TicketsTable({ violations, onRefresh }) {
                     <td>
                       <TypeTags value={v.violation_type} />
                     </td>
-                    <td>{v.enforcer_name}</td>
+                    <td className={v.enforcer_id ? "um-row-stop" : undefined}>
+                      {v.enforcer_id ? (
+                        <button
+                          type="button"
+                          className="enf-name-link"
+                          onClick={() => setProfileEnforcerId(v.enforcer_id)}
+                          title="View enforcer profile"
+                        >
+                          {v.enforcer_name}
+                        </button>
+                      ) : (
+                        v.enforcer_name
+                      )}
+                    </td>
                     <td
                       style={{
                         fontSize: "0.82rem",
@@ -2006,9 +2036,17 @@ export default function TicketsTable({ violations, onRefresh }) {
                 setDetailsId(null);
                 performAction(action, vv);
               }}
+              onViewEnforcer={setProfileEnforcerId}
             />
           );
         })()}
+      {profileEnforcerId && (
+        <EnforcerProfileModal
+          enforcerId={profileEnforcerId}
+          editable={isAdmin}
+          onClose={() => setProfileEnforcerId(null)}
+        />
+      )}
     </div>
   );
 }

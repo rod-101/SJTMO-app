@@ -392,6 +392,22 @@ export const resetUserPassword = (id, password) =>
     body: JSON.stringify({ password }),
   });
 
+// Self-service password change. The server revokes other sessions and returns
+// a fresh access token for this one, which we store immediately.
+export const changePassword = async (currentPassword, newPassword) => {
+  const data = await authedFetch(`${BASE_URL}/login/change-password`, {
+    method: "POST",
+    headers: authHeaders(),
+    credentials: "include",
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword,
+    }),
+  });
+  setToken(data.token);
+  return data;
+};
+
 export const forceLogoutUser = (id) =>
   authedFetch(`${BASE_URL}/users/${id}/force-logout`, {
     method: "POST",
@@ -536,6 +552,68 @@ export const getMyPatrolAssignments = () =>
   authedFetch(`${BASE_URL}/enforcers/me/assignments`, {
     headers: authHeadersOnly(),
   });
+
+// ── Enforcer profiles (staff-visible) ─────────────────────────────────────────
+export const getMyEnforcerProfile = () =>
+  authedFetch(`${BASE_URL}/enforcers/me/profile`, { headers: authHeadersOnly() });
+
+export const updateMyEnforcerProfile = (data) =>
+  authedFetch(`${BASE_URL}/enforcers/me/profile`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+
+const photoForm = (blob) => {
+  const fd = new FormData();
+  fd.append("photo", blob, "profile.jpg");
+  return fd;
+};
+
+export const uploadMyEnforcerPhoto = (blob) =>
+  authedFetch(`${BASE_URL}/enforcers/me/profile/photo`, {
+    method: "PUT",
+    headers: authHeadersOnly(),
+    body: photoForm(blob),
+  });
+
+export const deleteMyEnforcerPhoto = () =>
+  authedFetch(`${BASE_URL}/enforcers/me/profile/photo`, {
+    method: "DELETE",
+    headers: authHeadersOnly(),
+  });
+
+export const getEnforcerDirectory = (q = "") =>
+  authedFetch(
+    `${BASE_URL}/enforcers/directory${q ? `?q=${encodeURIComponent(q)}` : ""}`,
+    { headers: authHeadersOnly() },
+  );
+
+export const getEnforcerProfile = (id) =>
+  authedFetch(`${BASE_URL}/enforcers/${id}/profile`, { headers: authHeadersOnly() });
+
+export const updateEnforcerProfile = (id, data) =>
+  authedFetch(`${BASE_URL}/enforcers/${id}/profile`, {
+    method: "PATCH",
+    headers: authHeaders(),
+    body: JSON.stringify(data),
+  });
+
+export const uploadEnforcerPhoto = (id, blob) =>
+  authedFetch(`${BASE_URL}/enforcers/${id}/photo`, {
+    method: "PUT",
+    headers: authHeadersOnly(),
+    body: photoForm(blob),
+  });
+
+export const deleteEnforcerPhoto = (id) =>
+  authedFetch(`${BASE_URL}/enforcers/${id}/photo`, {
+    method: "DELETE",
+    headers: authHeadersOnly(),
+  });
+
+export const getEnforcerPhotoBlobUrl = (id) =>
+  fetchAuthedBlobUrl(`${BASE_URL}/enforcers/${id}/photo`);
 
 export const updateMyPatrolAssignment = (id, status) =>
   authedFetch(`${BASE_URL}/enforcers/me/assignments/${id}`, {

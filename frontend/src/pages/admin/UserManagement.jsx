@@ -10,6 +10,7 @@ import {
   resendInvite,
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import EnforcerProfileModal from "../../components/EnforcerProfileModal";
 import "../../App.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -291,9 +292,11 @@ function UserDetailsPanel({ userId, onClose, onAction, stats }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [profileOpen, setProfileOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    setProfileOpen(false);
     setLoading(true);
     setData(null);
     setErr("");
@@ -363,6 +366,11 @@ function UserDetailsPanel({ userId, onClose, onAction, stats }) {
             )}
 
             <div className="user-panel-actions">
+              {data.user.role === "enforcer" && (
+                <button className="btn btn-primary btn-sm" onClick={() => setProfileOpen(true)}>
+                  Enforcer Profile
+                </button>
+              )}
               <button className="btn btn-outline btn-sm" onClick={() => onAction("edit", data.user)}>Edit</button>
               <button className="btn btn-outline btn-sm" onClick={() => onAction("reset-password", data.user)}>Reset Password</button>
               <button className="btn btn-outline btn-sm" onClick={() => onAction("force-logout", data.user)}>Force Logout</button>
@@ -370,6 +378,13 @@ function UserDetailsPanel({ userId, onClose, onAction, stats }) {
           </div>
         ) : null}
       </aside>
+      {profileOpen && (
+        <EnforcerProfileModal
+          enforcerId={userId}
+          editable
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
     </>
   );
 }

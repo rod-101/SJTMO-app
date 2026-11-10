@@ -1295,6 +1295,152 @@ tr:hover td {
   margin-top: 2px;
 }
 
+/* ── Enforcer avatar / profile extras ────────────────────── */
+.enf-avatar {
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.enf-avatar--img {
+  object-fit: cover;
+  background: var(--border, #e5e7eb);
+}
+
+.enf-photo-controls {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.enf-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--brand-blue, #2563eb);
+  cursor: pointer;
+}
+.enf-link-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.enf-link-btn--danger {
+  color: var(--danger, #c62828);
+}
+
+.enf-inline-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+  margin-left: 12px;
+}
+.enf-inline-form .enf-input {
+  padding: 6px 8px;
+  min-width: 0;
+  max-width: 180px;
+}
+
+.enf-profile-foot {
+  font-size: 0.78rem;
+  color: var(--text-light, #888);
+  margin: 4px 0 12px;
+}
+.enf-card .enf-profile-foot {
+  margin: 12px 0 0;
+}
+
+.enf-profile-loading {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--text-light, #888);
+}
+
+.enf-profile-modal {
+  background: var(--card, #fff);
+  color: var(--text);
+}
+
+/* ── Enforcer directory ──────────────────────────────────── */
+.enf-dir .enf-input {
+  margin-bottom: 8px;
+}
+.enf-dir-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.enf-dir-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 4px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border, #f0f0f0);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.enf-dir-list li:last-child .enf-dir-item {
+  border-bottom: none;
+}
+.enf-dir-item:hover,
+.enf-dir-item:focus-visible {
+  background: var(--bg, #f5f5f5);
+}
+.enf-dir-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.enf-dir-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--text, #1a1a2e);
+}
+.enf-dir-sub {
+  font-size: 0.78rem;
+  color: var(--text-light, #888);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.enf-dir-chev {
+  font-size: 1.3rem;
+  color: var(--text-light, #aaa);
+}
+.enf-dir-empty {
+  font-size: 0.85rem;
+  color: var(--text-light, #888);
+  padding: 8px 0;
+}
+
+/* Clickable enforcer name in admin tables */
+.enf-name-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--brand-blue, #2563eb);
+  cursor: pointer;
+  text-align: left;
+}
+.enf-name-link:hover {
+  text-decoration: underline;
+}
+
 /* ── Generic Card ────────────────────────────────────────── */
 .enf-card {
   background: var(--card-bg, #fff);

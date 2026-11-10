@@ -3,6 +3,7 @@ const router = express.Router();
 const rateLimit = require("express-rate-limit");
 const bcrypt = require("bcryptjs");
 const pool = require("../db");
+const { requireAuth } = require("../middleware/auth");
 const {
   signAccessToken,
   issueRefreshToken,
@@ -654,5 +655,90 @@ router.post("/reset-password", async (req, res) => {
     res.status(500).json({ error: "Server error. Please try again." });
   }
 });
+
+// POST /login/change-password — signed-in user changes their own password.
+// Requires the current password. Bumps token_version and revokes every refresh
+// token so other sessions are signed out, then issues fresh tokens for this one.
+const changePasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts. Please try again later." },
+  keyGenerator: (req) => req.ip,
+});
+
+router.post(
+  "/change-password",
+  changePasswordLimiter,
+  requireAuth,
+  async (req, res) => {
+    const { current_password, new_password } = req.body || {};
+    if (!current_password || typeof current_password !== "string") {
+      return res.status(400).json({ error: "Current password is required." });
+    }
+    if (
+      !new_password ||
+      typeof new_password !== "string" ||
+      new_password.length < 8
+    ) {
+      return res
+        .status(400)
+        .json({ error: "New password must be at least 8 characters." });
+    }
+
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const result = await client.query(
+        `SELECT id, name, role, password, token_version FROM users WHERE id = $1 FOR UPDATE`,
+        [req.user.id],
+      );
+      const user = result.rows[0];
+      if (!user || !(await bcrypt.compare(current_password, user.password))) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ error: "Current password is incorrect." });
+      }
+
+      const hashed = await bcrypt.hash(new_password, SALT_ROUNDS);
+      const updated = await client.query(
+        `UPDATE users
+            SET password = $1, token_version = COALESCE(token_version, 0) + 1
+          WHERE id = $2
+          RETURNING id, role, token_version`,
+        [hashed, user.id],
+      );
+      await client.query(
+        `UPDATE refresh_tokens SET revoked_at = NOW()
+          WHERE user_id = $1 AND revoked_at IS NULL`,
+        [user.id],
+      );
+      const { raw: refreshToken } = await issueRefreshToken(client, {
+        userId: user.id,
+        userAgent: req.headers["user-agent"],
+        ip: req.ip,
+      });
+      await audit(client, {
+        actor: { id: user.id, name: user.name },
+        action: "user.password_change",
+        targetId: user.id,
+        ip: req.ip,
+      });
+      await client.query("COMMIT");
+
+      res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+        ...refreshCookieOptions(),
+        path: "/login",
+      });
+      res.json({ success: true, token: signAccessToken(updated.rows[0]) });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      console.error("Change password error:", err);
+      res.status(500).json({ error: "Server error. Please try again." });
+    } finally {
+      client.release();
+    }
+  },
+);
 
 module.exports = router;
