@@ -11,6 +11,7 @@ import {
 } from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import EnforcerProfileModal from "../../components/EnforcerProfileModal";
+import EnforcerAvatar from "../../components/EnforcerAvatar";
 import "../../App.css";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -76,8 +77,20 @@ function SkeletonRows({ count = 5 }) {
   return <>{Array.from({ length: count }).map((_, i) => <div key={i} className="skeleton-row" />)}</>;
 }
 
-function UserAvatar({ name, size }) {
-  return <div className={`user-avatar${size === "lg" ? " lg" : ""}`}>{initials(name)}</div>;
+// Enforcers with an uploaded photo show it; everyone else keeps the initials.
+function UserAvatar({ user, size }) {
+  if (user.role === "enforcer" && user.has_photo) {
+    return (
+      <EnforcerAvatar
+        id={user.id}
+        name={user.name}
+        hasPhoto
+        version={user.photo_updated_at}
+        size={size === "lg" ? 56 : 32}
+      />
+    );
+  }
+  return <div className={`user-avatar${size === "lg" ? " lg" : ""}`}>{initials(user.name)}</div>;
 }
 
 function Field({ label, value }) {
@@ -288,7 +301,7 @@ function ResetPasswordModal({ user, onClose, toast }) {
 }
 
 // ─── User Details Panel ───────────────────────────────────────────────────────
-function UserDetailsPanel({ userId, onClose, onAction, stats }) {
+function UserDetailsPanel({ userId, onClose, onAction, stats, onProfileChange }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -326,7 +339,7 @@ function UserDetailsPanel({ userId, onClose, onAction, stats }) {
         ) : data ? (
           <div className="user-panel-body">
             <div className="user-panel-profile">
-              <UserAvatar name={data.user.name} size="lg" />
+              <UserAvatar user={data.user} size="lg" />
               <div>
                 <div className="user-panel-name">{data.user.name}</div>
                 <div className="user-panel-email">{data.user.email}</div>
@@ -383,6 +396,13 @@ function UserDetailsPanel({ userId, onClose, onAction, stats }) {
           enforcerId={userId}
           editable
           onClose={() => setProfileOpen(false)}
+          onChange={(p) => {
+            // Keep the panel and table avatars in sync after a photo change.
+            setData((d) =>
+              d ? { ...d, user: { ...d.user, has_photo: p.has_photo, photo_updated_at: p.photo_updated_at } } : d,
+            );
+            onProfileChange?.();
+          }}
         />
       )}
     </>
@@ -721,7 +741,7 @@ export default function UserManagement({ violations = [] }) {
       case "name": return (
         <td key="name">
           <div className="user-cell">
-            <UserAvatar name={u.name} />
+            <UserAvatar user={u} />
             <div className="user-cell-name">{u.name}</div>
           </div>
         </td>
@@ -940,6 +960,7 @@ export default function UserManagement({ violations = [] }) {
           userId={detailsId}
           onClose={() => setDetailsId(null)}
           stats={violationStats[detailsId]}
+          onProfileChange={fetchUsers}
           onAction={(action, u) => { setDetailsId(null); performAction(action, u); }}
         />
       )}

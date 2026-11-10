@@ -21,6 +21,15 @@ const ROLE_RANK = { motorist: 1, enforcer: 2, admin: 3 };
 const SAFE_USER_COLUMNS = `id, name, email, role, status,
   last_login, created_at, updated_at`;
 
+// Read-only listing columns: SAFE_USER_COLUMNS plus whether an enforcer has a
+// profile photo. Only the flag/timestamp go out — the bytes stay behind
+// GET /enforcers/:id/photo. Requires `FROM users u LEFT JOIN enforcer_profiles ep`.
+const LIST_USER_COLUMNS = `u.id, u.name, u.email, u.role, u.status,
+  u.last_login, u.created_at, u.updated_at,
+  (u.role = 'enforcer' AND ep.photo IS NOT NULL) AS has_photo,
+  ep.photo_updated_at`;
+const LIST_USER_FROM = `users u LEFT JOIN enforcer_profiles ep ON ep.user_id = u.id`;
+
 // Every route below requires an authenticated admin — this file used to trust
 // a client-supplied X-Actor-Id header with no proof of identity, which let an
 // anonymous request create an admin account. requireAuth verifies a signed
@@ -51,7 +60,7 @@ const audit = async (
 router.get("/", async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT ${SAFE_USER_COLUMNS} FROM users ORDER BY created_at DESC`,
+      `SELECT ${LIST_USER_COLUMNS} FROM ${LIST_USER_FROM} ORDER BY u.created_at DESC`,
     );
     res.json(result.rows);
   } catch (err) {
@@ -383,7 +392,7 @@ router.get("/:id/activity", async (req, res) => {
   const { id } = req.params;
   try {
     const [user, logs, vCounts] = await Promise.all([
-      pool.query(`SELECT ${SAFE_USER_COLUMNS} FROM users WHERE id = $1`, [id]),
+      pool.query(`SELECT ${LIST_USER_COLUMNS} FROM ${LIST_USER_FROM} WHERE u.id = $1`, [id]),
       pool.query(
         `SELECT id, user_name, action, old_value, new_value, created_at
          FROM audit_logs
