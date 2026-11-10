@@ -114,14 +114,18 @@ async function consumeRefreshToken(client, rawToken) {
   };
 }
 
-// Revoke a single refresh token (logout).
+// Revoke a single refresh token (logout). Returns the owner's { id, name } when
+// a live token was revoked, otherwise null.
 async function revokeRefreshToken(client, rawToken) {
   const tokenHash = hashToken(rawToken);
-  await client.query(
-    `UPDATE refresh_tokens SET revoked_at = NOW()
-     WHERE token_hash = $1 AND revoked_at IS NULL`,
+  const result = await client.query(
+    `UPDATE refresh_tokens rt SET revoked_at = NOW()
+       FROM users u
+      WHERE u.id = rt.user_id AND rt.token_hash = $1 AND rt.revoked_at IS NULL
+     RETURNING rt.user_id AS id, u.name`,
     [tokenHash],
   );
+  return result.rows[0] || null;
 }
 
 // Cookie config used by routes that set/clear refresh cookies.

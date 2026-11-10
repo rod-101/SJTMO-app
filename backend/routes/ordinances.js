@@ -4,6 +4,7 @@ const multer = require("multer");
 const pool = require("../db");
 const path = require("path");
 const fs = require("fs");
+const { logAuditSafe } = require("../services/audit");
 
 // Ensure uploads directory exists
 const uploadDir = path.join(__dirname, "../uploads");
@@ -58,6 +59,13 @@ router.post("/", upload.single("file"), async (req, res) => {
       "INSERT INTO ordinances (title, filename, original_name) VALUES ($1, $2, $3) RETURNING *",
       [title.trim(), req.file.filename, req.file.originalname],
     );
+    await logAuditSafe(pool, {
+      req,
+      action: "ordinance.upload",
+      targetTable: "ordinances",
+      targetId: result.rows[0].id,
+      newValue: { title: result.rows[0].title, original_name: result.rows[0].original_name },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Upload ordinance error:", err);
@@ -70,13 +78,20 @@ router.delete("/:id", async (req, res) => {
   const { id } = req.params;
   try {
     const result = await pool.query(
-      "SELECT filename FROM ordinances WHERE id = $1",
+      "SELECT filename, title, original_name FROM ordinances WHERE id = $1",
       [id],
     );
     if (result.rows.length > 0) {
       const filePath = path.join(uploadDir, result.rows[0].filename);
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
       await pool.query("DELETE FROM ordinances WHERE id = $1", [id]);
+      await logAuditSafe(pool, {
+        req,
+        action: "ordinance.delete",
+        targetTable: "ordinances",
+        targetId: id,
+        oldValue: { title: result.rows[0].title, original_name: result.rows[0].original_name },
+      });
     }
     res.json({ success: true });
   } catch (err) {

@@ -3,6 +3,7 @@ const PDFDocument = require("pdfkit");
 const router = express.Router();
 const pool = require("../db");
 const { requireAuth, authorize } = require("../middleware/auth");
+const { logAuditSafe } = require("../services/audit");
 
 router.use(requireAuth, authorize("admin"));
 
@@ -967,6 +968,19 @@ async function handleReportExport(req, res) {
         ? `-${String(filters.month).padStart(2, "0")}`
         : ""
     }.pdf`;
+
+    // Log the export parameters only, never the report rows.
+    await logAuditSafe(pool, {
+      req,
+      action: "report.export",
+      newValue: {
+        file: filename,
+        period: filters.period,
+        year: filters.year,
+        month: filters.month ?? null,
+        sections,
+      },
+    });
 
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);

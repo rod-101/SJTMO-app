@@ -15,11 +15,11 @@ const formatDateTime = (d) =>
     : "—";
 
 function ActionBadge({ action = "" }) {
-  const tone = /delete|reject|suspend|force_logout/.test(action)
+  const tone = /delete|reject|suspend|force_logout|login_failed/i.test(action)
     ? "danger"
-    : /create|verify|activate/.test(action)
+    : /create|verify|activate|login$|upload/i.test(action)
       ? "success"
-      : /update|reset_password|deactivate/.test(action)
+      : /update|reset_password|deactivate|overdue|password|export|photo/i.test(action)
         ? "warn"
         : "neutral";
   return <span className={`status-pill log-action-${tone}`}>{action || "unknown"}</span>;

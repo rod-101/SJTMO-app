@@ -3,6 +3,7 @@ const router = express.Router();
 const pool = require("../db");
 const multer = require("multer");
 const { requireAuth, authorize } = require("../middleware/auth");
+const { logAuditSafe } = require("../services/audit");
 
 router.use(requireAuth);
 
@@ -506,6 +507,13 @@ router.post("/areas", async (req, res) => {
        RETURNING *`,
       [name.trim(), description || null, latitude || null, longitude || null],
     );
+    await logAuditSafe(pool, {
+      req,
+      action: "patrol_area.create",
+      targetTable: "patrol_areas",
+      targetId: result.rows[0].id,
+      newValue: { name: result.rows[0].name, description: result.rows[0].description },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === "23505") {
@@ -519,6 +527,12 @@ router.post("/areas", async (req, res) => {
 router.patch("/areas/:id", async (req, res) => {
   const { name, description, latitude, longitude } = req.body || {};
   try {
+    const before = await pool.query(
+      `SELECT name, description, latitude, longitude FROM patrol_areas WHERE id = $1`,
+      [req.params.id],
+    );
+    if (before.rows.length === 0) return res.status(404).json({ error: "Area not found" });
+
     const result = await pool.query(
       `UPDATE patrol_areas
           SET name        = COALESCE($1, name),
@@ -531,6 +545,25 @@ router.patch("/areas/:id", async (req, res) => {
       [name?.trim() || null, description ?? null, latitude ?? null, longitude ?? null, req.params.id],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Area not found" });
+
+    const oldValue = {};
+    const newValue = {};
+    for (const field of ["name", "description", "latitude", "longitude"]) {
+      if (String(before.rows[0][field] ?? "") !== String(result.rows[0][field] ?? "")) {
+        oldValue[field] = before.rows[0][field];
+        newValue[field] = result.rows[0][field];
+      }
+    }
+    if (Object.keys(newValue).length > 0) {
+      await logAuditSafe(pool, {
+        req,
+        action: "patrol_area.update",
+        targetTable: "patrol_areas",
+        targetId: req.params.id,
+        oldValue,
+        newValue,
+      });
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Update patrol area error:", err);
@@ -541,10 +574,17 @@ router.patch("/areas/:id", async (req, res) => {
 router.delete("/areas/:id", async (req, res) => {
   try {
     const result = await pool.query(
-      `DELETE FROM patrol_areas WHERE id = $1 RETURNING id`,
+      `DELETE FROM patrol_areas WHERE id = $1 RETURNING id, name`,
       [req.params.id],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Area not found" });
+    await logAuditSafe(pool, {
+      req,
+      action: "patrol_area.delete",
+      targetTable: "patrol_areas",
+      targetId: req.params.id,
+      oldValue: { name: result.rows[0].name },
+    });
     res.json({ message: "Area deleted" });
   } catch (err) {
     console.error("Delete patrol area error:", err);
@@ -664,6 +704,12 @@ router.patch("/assignments/:id", async (req, res) => {
     return res.status(400).json({ error: "Invalid status" });
   }
   try {
+    const before = await pool.query(
+      `SELECT shift_start, shift_end, notes, status, area_id FROM patrol_assignments WHERE id = $1`,
+      [req.params.id],
+    );
+    if (before.rows.length === 0) return res.status(404).json({ error: "Assignment not found" });
+
     const result = await pool.query(
       `UPDATE patrol_assignments
           SET shift_start = COALESCE($1, shift_start),
@@ -677,6 +723,25 @@ router.patch("/assignments/:id", async (req, res) => {
       [shift_start ?? null, shift_end ?? null, notes ?? null, status ?? null, area_id ?? null, req.params.id],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Assignment not found" });
+
+    const oldValue = {};
+    const newValue = {};
+    for (const field of ["shift_start", "shift_end", "notes", "status", "area_id"]) {
+      if (String(before.rows[0][field] ?? "") !== String(result.rows[0][field] ?? "")) {
+        oldValue[field] = before.rows[0][field];
+        newValue[field] = result.rows[0][field];
+      }
+    }
+    if (Object.keys(newValue).length > 0) {
+      await logAuditSafe(pool, {
+        req,
+        action: "patrol_assignment.update",
+        targetTable: "patrol_assignments",
+        targetId: req.params.id,
+        oldValue,
+        newValue,
+      });
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Update assignment error:", err);
@@ -687,10 +752,22 @@ router.patch("/assignments/:id", async (req, res) => {
 router.delete("/assignments/:id", async (req, res) => {
   try {
     const result = await pool.query(
-      `DELETE FROM patrol_assignments WHERE id = $1 RETURNING id`,
+      `DELETE FROM patrol_assignments WHERE id = $1
+       RETURNING id, enforcer_id, area_id, shift_date::text AS shift_date`,
       [req.params.id],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Assignment not found" });
+    await logAuditSafe(pool, {
+      req,
+      action: "patrol_assignment.delete",
+      targetTable: "patrol_assignments",
+      targetId: req.params.id,
+      oldValue: {
+        enforcer_id: result.rows[0].enforcer_id,
+        area_id: result.rows[0].area_id,
+        shift_date: result.rows[0].shift_date,
+      },
+    });
     res.json({ message: "Assignment removed" });
   } catch (err) {
     console.error("Delete assignment error:", err);

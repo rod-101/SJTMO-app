@@ -27,6 +27,7 @@ const {
   markTokenUsed: markResetTokenUsed,
   sendPasswordResetEmail,
 } = require("../services/passwordReset");
+const { logAudit, logAuditSafe } = require("../services/audit");
 
 const SALT_ROUNDS = 10;
 const MIN_REGISTRATION_AGE = 16;
@@ -137,6 +138,12 @@ router.post("/", loginLimiter, async (req, res) => {
 
     if (result.rows.length === 0) {
       console.log("Login attempt with non-existent email:", normalizedEmail);
+      await logAuditSafe(pool, {
+        actor: null,
+        action: "auth.login_failed",
+        newValue: { email: normalizedEmail, reason: "unknown_email" },
+        ip: req.ip,
+      });
       return res.status(401).json({ error: "Invalid credentials." });
     }
     const user = result.rows[0];
@@ -144,7 +151,26 @@ router.post("/", loginLimiter, async (req, res) => {
 
     if (!valid) {
       console.log("Invalid password for:", normalizedEmail);
+      await logAuditSafe(pool, {
+        actor: { id: user.id, name: user.name },
+        action: "auth.login_failed",
+        targetTable: "users",
+        targetId: user.id,
+        newValue: { email: normalizedEmail, reason: "bad_password" },
+        ip: req.ip,
+      });
       return res.status(401).json({ error: "Invalid credentials." });
+    }
+
+    if (user.status !== "active") {
+      await logAuditSafe(pool, {
+        actor: { id: user.id, name: user.name },
+        action: "auth.login_failed",
+        targetTable: "users",
+        targetId: user.id,
+        newValue: { email: normalizedEmail, reason: user.status },
+        ip: req.ip,
+      });
     }
 
     if (user.status === "pending_verification") {
@@ -169,6 +195,14 @@ router.post("/", loginLimiter, async (req, res) => {
     await pool.query("UPDATE users SET last_login = NOW() WHERE id = $1", [
       user.id,
     ]);
+
+    await logAuditSafe(pool, {
+      actor: { id: user.id, name: user.name },
+      action: "auth.login",
+      targetTable: "users",
+      targetId: user.id,
+      ip: req.ip,
+    });
 
     const accessToken = signAccessToken(user);
     const { raw: refreshToken } = await issueRefreshToken(pool, {
@@ -308,6 +342,13 @@ router.post("/verify-email", async (req, res) => {
       [row.user_id],
     );
     await markTokenUsed(client, row.id);
+    await logAudit(client, {
+      actor: { id: row.user_id, name: null },
+      action: "auth.email_verified",
+      targetTable: "users",
+      targetId: row.user_id,
+      ip: req.ip,
+    });
     await client.query("COMMIT");
 
     res.json({
@@ -498,7 +539,16 @@ router.post("/logout", async (req, res) => {
   const raw = req.cookies?.[REFRESH_COOKIE_NAME];
   if (raw) {
     try {
-      await revokeRefreshToken(pool, raw);
+      const owner = await revokeRefreshToken(pool, raw);
+      if (owner) {
+        await logAuditSafe(pool, {
+          actor: owner,
+          action: "auth.logout",
+          targetTable: "users",
+          targetId: owner.id,
+          ip: req.ip,
+        });
+      }
     } catch (err) {
       console.error("Logout revoke error:", err);
     }
@@ -542,6 +592,13 @@ router.post("/forgot-password", resendVerificationLimiter, async (req, res) => {
       await invalidateResetTokens(client, user.id);
       const rawToken = await createPasswordResetToken(client, user.id);
       await sendPasswordResetEmail(user, rawToken);
+      await logAudit(client, {
+        actor: { id: user.id, name: user.name },
+        action: "auth.password_reset_requested",
+        targetTable: "users",
+        targetId: user.id,
+        ip: req.ip,
+      });
 
       await client.query("COMMIT");
 

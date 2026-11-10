@@ -6,6 +6,7 @@ const sharp = require("sharp");
 const path = require("path");
 const fs = require("fs");
 const { requireAuth, authorize, optionalAuth } = require("../middleware/auth");
+const { logAuditSafe } = require("../services/audit");
 
 // Receipt photos live in their own subdir, separate from the publicly-served
 // /uploads static mount used for ordinance PDFs — access-controlled like ticket evidence.
@@ -456,6 +457,13 @@ router.post("/:id/photo", requireAuth, authorize("admin"), (req, res) => {
         fs.unlinkSync(filePath);
         return res.status(404).json({ error: "Payment not found" });
       }
+      await logAuditSafe(pool, {
+        req,
+        action: "payment.photo_upload",
+        targetTable: "payments",
+        targetId: req.params.id,
+        newValue: { filename },
+      });
       res.status(201).json({ success: true, filename });
     } catch (err2) {
       console.error("Upload receipt photo error:", err2);

@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const { logAuditSafe } = require("../services/audit");
 
 // GET /motorists/search?q=
 router.get("/search", async (req, res) => {
@@ -60,6 +61,17 @@ router.post("/", async (req, res) => {
         contact_no || null,
       ],
     );
+    await logAuditSafe(pool, {
+      req,
+      action: "motorist.create",
+      targetTable: "motorists",
+      targetId: result.rows[0].id,
+      newValue: {
+        first_name: result.rows[0].first_name,
+        last_name: result.rows[0].last_name,
+        license_no: result.rows[0].license_no,
+      },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error("Create motorist error:", err);
@@ -75,6 +87,13 @@ router.put("/:id", async (req, res) => {
     return res.status(400).json({ error: "first_name and last_name are required" });
   }
   try {
+    const before = await pool.query(
+      `SELECT first_name, last_name, license_no, birthday, address, contact_no
+         FROM motorists WHERE id = $1`,
+      [id],
+    );
+    if (before.rows.length === 0) return res.status(404).json({ error: "Motorist not found" });
+
     const result = await pool.query(
       `UPDATE motorists SET
         first_name = $1, last_name = $2, license_no = $3,
@@ -91,6 +110,25 @@ router.put("/:id", async (req, res) => {
       ],
     );
     if (result.rows.length === 0) return res.status(404).json({ error: "Motorist not found" });
+
+    const oldValue = {};
+    const newValue = {};
+    for (const field of ["first_name", "last_name", "license_no", "birthday", "address", "contact_no"]) {
+      if (String(before.rows[0][field] ?? "") !== String(result.rows[0][field] ?? "")) {
+        oldValue[field] = before.rows[0][field];
+        newValue[field] = result.rows[0][field];
+      }
+    }
+    if (Object.keys(newValue).length > 0) {
+      await logAuditSafe(pool, {
+        req,
+        action: "motorist.update",
+        targetTable: "motorists",
+        targetId: id,
+        oldValue,
+        newValue,
+      });
+    }
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Update motorist error:", err);

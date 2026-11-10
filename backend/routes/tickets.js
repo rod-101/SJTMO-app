@@ -5,6 +5,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const { requireAuth, authorize, optionalAuth } = require("../middleware/auth");
+const { logAuditSafe } = require("../services/audit");
 
 const VALID_STATUSES = [
   "pending",
@@ -411,6 +412,14 @@ router.put("/:id", requireAuth, authorize("admin"), async (req, res) => {
   }
 
   try {
+    const before = await pool.query(
+      `SELECT motorist_name, violation_type, notes, status, enforcer_name
+         FROM tickets WHERE id = $1 AND is_deleted = FALSE`,
+      [id],
+    );
+    if (before.rows.length === 0)
+      return res.status(404).json({ error: "Ticket not found" });
+
     const result = await pool.query(
       `UPDATE tickets SET
         motorist_name  = COALESCE($1, motorist_name),
@@ -430,6 +439,33 @@ router.put("/:id", requireAuth, authorize("admin"), async (req, res) => {
     );
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Ticket not found" });
+
+    // Record only the fields that actually changed.
+    const oldValue = {};
+    const newValue = {};
+    for (const field of [
+      "motorist_name",
+      "violation_type",
+      "notes",
+      "status",
+      "enforcer_name",
+    ]) {
+      if (before.rows[0][field] !== result.rows[0][field]) {
+        oldValue[field] = before.rows[0][field];
+        newValue[field] = result.rows[0][field];
+      }
+    }
+    if (Object.keys(newValue).length > 0) {
+      await logAuditSafe(pool, {
+        req,
+        action: "ticket.update",
+        targetTable: "tickets",
+        targetId: id,
+        oldValue,
+        newValue,
+      });
+    }
+
     res.json(result.rows[0]);
   } catch (err) {
     console.error("Edit ticket error:", err);
@@ -441,11 +477,20 @@ router.put("/:id", requireAuth, authorize("admin"), async (req, res) => {
 router.delete("/:id", requireAuth, authorize("admin"), async (req, res) => {
   try {
     const result = await pool.query(
-      "UPDATE tickets SET is_deleted = TRUE WHERE id = $1 RETURNING id",
+      "UPDATE tickets SET is_deleted = TRUE WHERE id = $1 RETURNING id, ticket_no",
       [req.params.id],
     );
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Ticket not found" });
+
+    await logAuditSafe(pool, {
+      req,
+      action: "ticket.delete",
+      targetTable: "tickets",
+      targetId: req.params.id,
+      oldValue: { ticket_no: result.rows[0].ticket_no },
+    });
+
     res.json({ success: true });
   } catch (err) {
     console.error("Delete ticket error:", err);
@@ -471,6 +516,13 @@ router.post("/:id/photo", requireAuth, (req, res) => {
         fs.unlinkSync(req.file.path);
         return res.status(404).json({ error: "Ticket not found" });
       }
+      await logAuditSafe(pool, {
+        req,
+        action: "ticket.photo_upload",
+        targetTable: "tickets",
+        targetId: req.params.id,
+        newValue: { filename: req.file.filename },
+      });
       res.status(201).json({ success: true, filename: req.file.filename });
     } catch (err2) {
       fs.unlinkSync(req.file.path);
@@ -537,6 +589,13 @@ router.post("/types", requireAuth, authorize("admin"), async (req, res) => {
       "INSERT INTO violation_types (name, fine) VALUES ($1, $2) RETURNING *",
       [name.trim(), fine || 0],
     );
+    await logAuditSafe(pool, {
+      req,
+      action: "violation_type.create",
+      targetTable: "violation_types",
+      targetId: result.rows[0].id,
+      newValue: { name: result.rows[0].name, fine: result.rows[0].fine },
+    });
     res.status(201).json(result.rows[0]);
   } catch (err) {
     if (err.code === "23505")
@@ -553,12 +612,38 @@ router.put("/types/:id", requireAuth, authorize("admin"), async (req, res) => {
     return res.status(400).json({ error: "Violation type name is required" });
   }
   try {
+    const before = await pool.query(
+      "SELECT name, fine FROM violation_types WHERE id = $1",
+      [req.params.id],
+    );
+    if (before.rows.length === 0)
+      return res.status(404).json({ error: "Violation type not found" });
+
     const result = await pool.query(
       "UPDATE violation_types SET name = $1, fine = $2 WHERE id = $3 RETURNING *",
       [name.trim(), fine || 0, req.params.id],
     );
     if (result.rows.length === 0)
       return res.status(404).json({ error: "Violation type not found" });
+
+    const oldValue = {};
+    const newValue = {};
+    for (const field of ["name", "fine"]) {
+      if (String(before.rows[0][field]) !== String(result.rows[0][field])) {
+        oldValue[field] = before.rows[0][field];
+        newValue[field] = result.rows[0][field];
+      }
+    }
+    if (Object.keys(newValue).length > 0) {
+      await logAuditSafe(pool, {
+        req,
+        action: "violation_type.update",
+        targetTable: "violation_types",
+        targetId: req.params.id,
+        oldValue,
+        newValue,
+      });
+    }
     res.json(result.rows[0]);
   } catch (err) {
     if (err.code === "23505")
@@ -576,11 +661,19 @@ router.delete(
   async (req, res) => {
     try {
       const result = await pool.query(
-        "DELETE FROM violation_types WHERE id = $1 RETURNING id",
+        "DELETE FROM violation_types WHERE id = $1 RETURNING id, name, fine",
         [req.params.id],
       );
       if (result.rows.length === 0)
         return res.status(404).json({ error: "Violation type not found" });
+
+      await logAuditSafe(pool, {
+        req,
+        action: "violation_type.delete",
+        targetTable: "violation_types",
+        targetId: req.params.id,
+        oldValue: { name: result.rows[0].name, fine: result.rows[0].fine },
+      });
       res.json({ success: true });
     } catch (err) {
       console.error("Delete violation type error:", err);
